@@ -14,6 +14,9 @@ import {
     UserPlus,
     Link2
 } from 'lucide-react';
+import logo from './assets/logo.png';
+import { ThemeProvider, useTheme } from './context/ThemeContext';
+import SettingsModal from './components/SettingsModal';
 
 interface CCItem {
     creatorName: string;
@@ -42,9 +45,10 @@ interface ScanAnalysis {
     matches: CreatorMatch[];
 }
 
-import logo from './assets/logo.png';
+const DashboardContent: React.FC = () => {
+    const { themeColor, opacity } = useTheme();
+    const [showSettings, setShowSettings] = useState(false);
 
-const App: React.FC = () => {
     const [scanning, setScanning] = useState(false);
     const [results, setResults] = useState<CCItem[]>([]);
     const [credits, setCredits] = useState<Creator[]>([]);
@@ -146,10 +150,43 @@ const App: React.FC = () => {
         setTimeout(() => setCopying(false), 2000);
     };
 
+    // Calculate background color based on theme
+    const getBackgroundStyle = () => {
+        const bgColors: Record<string, string> = {
+            'obsidian': `rgba(10, 10, 12, ${opacity})`,
+            'rose-quartz': `rgba(40, 10, 20, ${opacity})`,
+            'sapphire': `rgba(10, 20, 40, ${opacity})`,
+            'diamond': `rgba(240, 240, 255, ${opacity})`
+        };
+
+        const style: React.CSSProperties = {
+            backgroundColor: bgColors[themeColor] || bgColors['obsidian'],
+        };
+
+        // Inject dynamic accent colors
+        if (themeColor === 'rose-quartz') {
+            document.documentElement.style.setProperty('--color-brand-primary', 'hsl(330, 81%, 60%)');
+            document.documentElement.style.setProperty('--color-brand-secondary', 'hsl(330, 81%, 70%)');
+        } else if (themeColor === 'sapphire') {
+            document.documentElement.style.setProperty('--color-brand-primary', 'hsl(217, 91%, 60%)');
+            document.documentElement.style.setProperty('--color-brand-secondary', 'hsl(217, 91%, 70%)');
+        } else if (themeColor === 'diamond') {
+            // For diamond, we might want a different primary color or keep it standard blue/purple
+            document.documentElement.style.setProperty('--color-brand-primary', 'hsl(200, 90%, 60%)');
+            document.documentElement.style.setProperty('--color-brand-secondary', 'hsl(200, 90%, 70%)');
+        } else {
+            // Reset to Obsidian/Default
+            document.documentElement.style.setProperty('--color-brand-primary', 'hsl(262, 83%, 65%)');
+            document.documentElement.style.setProperty('--color-brand-secondary', 'hsl(262, 83%, 75%)');
+        }
+
+        return style;
+    };
+
     return (
-        <div className="min-h-screen bg-bg-dark text-slate-200 flex font-sans">
+        <div className="min-h-screen text-slate-200 flex font-sans transition-colors duration-500" style={getBackgroundStyle()}>
             {/* Sidebar */}
-            <aside className="w-64 border-r border-border-subtle bg-bg-card flex flex-col p-6 shadow-xl z-10 text-slate-400">
+            <aside className="w-64 border-r border-border-subtle bg-bg-card/50 flex flex-col p-6 shadow-xl z-10 text-slate-400 backdrop-blur-sm">
                 <div className="flex items-center gap-3 mb-10 px-2 text-slate-200">
                     <img src={logo} alt="Logo" className="w-10 h-10 object-contain rounded-xl" />
                     <span className="font-bold text-xl tracking-tight">CC Catalog</span>
@@ -171,7 +208,10 @@ const App: React.FC = () => {
                 </nav>
 
                 <div className="pt-6 border-t border-border-subtle">
-                    <button className="w-full flex items-center gap-3 px-4 py-3 hover:text-slate-200 rounded-xl font-medium transition-all">
+                    <button
+                        onClick={() => setShowSettings(true)}
+                        className="w-full flex items-center gap-3 px-4 py-3 hover:text-slate-200 rounded-xl font-medium transition-all hover:bg-white/5"
+                    >
                         <Settings size={20} />
                         Settings
                     </button>
@@ -235,7 +275,7 @@ const App: React.FC = () => {
                                 ) : (
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         {credits.map((creator: Creator) => (
-                                            <div key={creator.id} className="bg-bg-card border border-border-subtle rounded-2xl p-5 hover-lift">
+                                            <div key={creator.id} className="bg-white/5 border border-border-subtle rounded-2xl p-5 hover-lift backdrop-blur-md">
                                                 <div className="flex justify-between items-start mb-4">
                                                     <div>
                                                         <h3 className="text-lg font-bold text-slate-200">{creator.name}</h3>
@@ -323,6 +363,9 @@ const App: React.FC = () => {
                     </div>
                 </div>
             </main>
+
+            {/* Modals */}
+            <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
 
             {/* Scan Confirmation Modal */}
             {analysis && (
@@ -519,4 +562,3 @@ const App: React.FC = () => {
 };
 
 export default App;
-

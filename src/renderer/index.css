@@ -20,7 +20,15 @@
   }
 
   body {
-    @apply bg-bg-dark text-slate-200 font-sans antialiased selection:bg-brand-primary/30;
+    @apply text-slate-200 font-sans antialiased selection:bg-brand-primary/30;
+    background-color: transparent !important;
+  }
+
+  html, #root {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    background-color: transparent !important;
   }
 }
 

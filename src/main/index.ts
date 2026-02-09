@@ -78,7 +78,9 @@ function createWindow() {
             contextIsolation: true,
         },
         title: 'CC Catalog',
-        backgroundColor: '#1e1e1e',
+        backgroundColor: '#00000000', // Fully transparent for acrylic to show through
+        backgroundMaterial: 'acrylic',
+        transparent: false, // Standard frame + acrylic usually requires transparent: false on Windows to avoid artifacts/crashes
     });
 
     if (process.env.VITE_DEV_SERVER_URL) {
