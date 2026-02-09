@@ -51,6 +51,7 @@ export const scanHistory = sqliteTable('scan_history', {
     itemsFound: integer('items_found').default(0),
     creatorsFound: integer('creators_found').default(0),
     status: text('status').default('success'),
+    scannedFiles: text('scanned_files'), // JSON string of file names
 });
 
 /**

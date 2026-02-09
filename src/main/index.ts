@@ -10,7 +10,7 @@ process.on('unhandledRejection', (reason) => {
 console.log('[MAIN] starting app');
 
 import { app, BrowserWindow, ipcMain, dialog } from 'electron';
-import { join, dirname } from 'path';
+import { join, dirname, basename, extname } from 'path';
 import { fileURLToPath } from 'url';
 import { initDatabase, getDb, saveDatabase } from './db/database.js';
 import { ZipScanner } from './lib/ZipScanner.js';
@@ -94,7 +94,8 @@ ipcMain.handle('delete-set', async (_, id) => {
     const db = getDb();
 
     // Check if empty
-    const itemsCount = db.select({ count: sql`count(*)` }).from(ccItems).where(eq(ccItems.ccSetId, id)).get()?.count || 0;
+    const result = db.select({ count: sql<number>`count(*)` }).from(ccItems).where(eq(ccItems.ccSetId, id)).get();
+    const itemsCount = result ? Number(result.count) : 0;
 
     if (itemsCount > 0) {
         throw new Error('Cannot delete non-empty set. Move items first.');
@@ -194,7 +195,7 @@ ipcMain.handle('confirm-scan', async (_, { results, matches, filePath }: any) =>
 
     // Log directly to DB here or pass filePath if needed
     // Let's extract filename from path if passed, or just "Unknown"
-    const fileName = filePath ? filePath.split(/[/\\]/).pop() : "Unknown Scan";
+    const fileName = filePath ? basename(filePath, extname(filePath)) : "Unknown Scan";
 
     const db = getDb();
     db.insert(scanHistory).values({
@@ -202,7 +203,8 @@ ipcMain.handle('confirm-scan', async (_, { results, matches, filePath }: any) =>
         fileName: fileName,
         itemsFound: results.length,
         creatorsFound: matches.filter((m: any) => m.similarity === 0 && !m.existingId).length, // New creators aprox.
-        status: 'success'
+        status: 'success',
+        scannedFiles: JSON.stringify(results.map((r: any) => r.fileName))
     }).run();
 
     saveDatabase();
@@ -512,6 +514,18 @@ if (!gotTheLock) {
         try {
             console.log('[MAIN] initDatabase start');
             await initDatabase();
+
+            // Basic Migration for scanned_files column
+            try {
+                const db = getDb();
+                // Check if column exists, if not adds it.
+                // SQLite doesn't support IF NOT EXISTS in ADD COLUMN well in all versions, 
+                // but checking schema pragma or just try/catch is common lazy migration
+                db.run(sql`ALTER TABLE scan_history ADD COLUMN scanned_files TEXT`);
+            } catch (e) {
+                // Column likely exists
+            }
+
             console.log('[MAIN] initDatabase OK');
             dbInitialized = true;
         } catch (err) {
@@ -523,6 +537,14 @@ if (!gotTheLock) {
         createWindow();
     });
 }
+
+ipcMain.handle('delete-history-item', async (_, id) => {
+    if (!dbInitialized) throw new Error('Database not initialized');
+    const db = getDb();
+    db.delete(scanHistory).where(eq(scanHistory.id, id)).run();
+    saveDatabase();
+    return true;
+});
 
 ipcMain.handle('generate-report', async (_, options) => {
     if (!dbInitialized) throw new Error('Database not initialized');

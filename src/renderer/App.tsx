@@ -45,6 +45,17 @@ interface CreatorMatch {
 interface ScanAnalysis {
     results: CCItem[];
     matches: CreatorMatch[];
+    filePath?: string;
+}
+
+interface ScanLog {
+    id: string;
+    scanDate: string;
+    itemsFound: number;
+    creatorsFound: number;
+    fileName: string;
+    status: string;
+    scannedFiles?: string;
 }
 
 const DashboardContent: React.FC = () => {
@@ -67,34 +78,49 @@ const DashboardContent: React.FC = () => {
     const [editingCreator, setEditingCreator] = useState<Creator | null>(null);
     const [editForm, setEditForm] = useState({ patreon_url: '', website_url: '' });
 
+    const [history, setHistory] = useState<ScanLog[]>([]);
+
     const loadCredits = async () => {
         const data = await (window as any).electron.invoke('get-credits');
         setCredits(data);
     };
 
+    const loadHistory = async () => {
+        const data = await (window as any).electron.invoke('get-history');
+        setHistory(data);
+    };
+
+    // State to trigger history refresh
+    const [historyUpdateTrigger, setHistoryUpdateTrigger] = useState(0);
+
     useEffect(() => {
         loadCredits();
-    }, []);
+        loadHistory();
+    }, [historyUpdateTrigger]);
 
     const handleScan = async () => {
         setScanning(true);
         try {
             const data = await (window as any).electron.invoke('scan-zip');
             if (data) {
-                const { results: scanResults, matches } = data as ScanAnalysis;
+                // Assert type to include filePath which was missing in ScanAnalysis interface
+                const { results: scanResults, matches, filePath } = data as ScanAnalysis & { filePath: string };
 
                 const needsConfirm = matches.filter(m => m.needsConfirmation);
                 if (needsConfirm.length > 0) {
-                    setAnalysis({ results: scanResults, matches });
+                    // Store filePath in analysis state for later use
+                    setAnalysis({ results: scanResults, matches, filePath });
                     setPendingConfirmations(needsConfirm);
                 } else {
                     // No new or fuzzy creators, just process everything
                     await (window as any).electron.invoke('confirm-scan', {
                         results: scanResults,
-                        matches
+                        matches,
+                        filePath // Pass file path here
                     });
                     setResults(scanResults);
                     loadCredits();
+                    setHistoryUpdateTrigger(prev => prev + 1); // Refresh history
                 }
             }
         } catch (error) {
@@ -109,13 +135,15 @@ const DashboardContent: React.FC = () => {
 
         await (window as any).electron.invoke('confirm-scan', {
             results: analysis.results,
-            matches: analysis.matches
+            matches: analysis.matches,
+            filePath: analysis.filePath // Pass stored file path
         });
 
         setResults(analysis.results);
         setAnalysis(null);
         setPendingConfirmations([]);
         loadCredits();
+        setHistoryUpdateTrigger(prev => prev + 1); // Refresh history
     };
 
     const updateMatch = (foundName: string, updates: Partial<CreatorMatch>) => {
@@ -132,7 +160,15 @@ const DashboardContent: React.FC = () => {
     };
 
     const [showReportOptions, setShowReportOptions] = useState(false);
-    const [reportSource, setReportSource] = useState<'library' | 'scan'>('library');
+
+    interface ReportSource {
+        type: 'library' | 'scan';
+        contextName?: string; // e.g. "Library" or "MyZip.zip"
+        items?: string[]; // list of filenames for scan context
+    }
+
+    const [reportSource, setReportSource] = useState<ReportSource>({ type: 'library', contextName: 'Full Library' });
+
     const [reportConfig, setReportConfig] = useState({
         includeCreators: true,
         includeSets: true,
@@ -140,7 +176,7 @@ const DashboardContent: React.FC = () => {
         includeCategory: true
     });
 
-    const handleOpenReportOptions = (source: 'library' | 'scan' = 'library') => {
+    const handleOpenReportOptions = (source: ReportSource = { type: 'library', contextName: 'Full Library' }) => {
         setReportSource(source);
         setShowReportOptions(true);
     };
@@ -148,8 +184,8 @@ const DashboardContent: React.FC = () => {
     const handleGenerateReport = async () => {
         const config: any = { ...reportConfig };
 
-        if (reportSource === 'scan' && results.length > 0) {
-            config.filterFileNames = results.map(r => r.fileName);
+        if (reportSource.type === 'scan' && reportSource.items) {
+            config.filterFileNames = reportSource.items;
         }
 
         const text = await (window as any).electron.invoke('generate-report', config);
@@ -266,7 +302,20 @@ const DashboardContent: React.FC = () => {
 
                     <div className="flex gap-4">
                         <button
-                            onClick={() => handleOpenReportOptions('library')}
+                            onClick={() => {
+                                if (history.length > 0) {
+                                    const latest = history[0];
+                                    let items: string[] = [];
+                                    try {
+                                        items = latest.scannedFiles ? JSON.parse(latest.scannedFiles) : [];
+                                    } catch (e) {
+                                        console.error('Failed to parse scanned files history', e);
+                                    }
+                                    handleOpenReportOptions({ type: 'scan', contextName: latest.fileName, items: items });
+                                } else {
+                                    alert('No scan history available to generate a report. Please scan a ZIP file first.');
+                                }
+                            }}
                             className="flex items-center gap-2 px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-semibold transition-all"
                         >
                             <Clipboard size={18} />
@@ -382,7 +431,7 @@ const DashboardContent: React.FC = () => {
                                                         Successfully identified {results.length} items
                                                     </div>
                                                     <button
-                                                        onClick={() => handleOpenReportOptions('scan')}
+                                                        onClick={() => handleOpenReportOptions({ type: 'scan', contextName: 'Last Scan', items: results.map((r: any) => r.fileName) })}
                                                         className="text-xs bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg border border-white/5 transition-colors flex items-center gap-2 font-medium text-slate-300 hover:text-white"
                                                     >
                                                         <Clipboard size={14} />
@@ -417,7 +466,28 @@ const DashboardContent: React.FC = () => {
                 {/* History View */}
                 {currentView === 'history' && (
                     <div className="p-8 overflow-y-auto custom-scrollbar flex-grow">
-                        <HistoryView />
+                        <HistoryView
+                            key={historyUpdateTrigger}
+                            onReport={(log) => {
+                                let items: string[] = [];
+                                try {
+                                    items = log.scannedFiles ? JSON.parse(log.scannedFiles) : [];
+                                } catch (e) {
+                                    console.error('Failed to parse scanned files history', e);
+                                }
+
+                                if (items.length === 0) {
+                                    alert('No file details available for this historical scan.');
+                                    return;
+                                }
+
+                                handleOpenReportOptions({
+                                    type: 'scan',
+                                    contextName: log.fileName,
+                                    items: items
+                                });
+                            }}
+                        />
                     </div>
                 )}
             </main>
@@ -427,16 +497,19 @@ const DashboardContent: React.FC = () => {
 
             {/* Scan Confirmation Modal */}
             {analysis && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-xl z-50 flex items-center justify-center p-6 animate-in fade-in duration-300">
-                    <div className="bg-bg-card border border-border-subtle rounded-[2rem] w-full max-w-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
-                        <div className="px-10 py-8 border-b border-border-subtle bg-white/5">
-                            <h2 className="text-2xl font-black tracking-tight flex items-center gap-3">
+                <div
+                    className="fixed inset-0 bg-black/80 backdrop-blur-xl z-50 flex items-center justify-center p-6 animate-in fade-in duration-300"
+                    onClick={(e) => { if (e.target === e.currentTarget) { setAnalysis(null); setPendingConfirmations([]); } }}
+                >
+                    <div className="bg-bg-card border border-border-subtle rounded-[2rem] w-full max-w-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
+                        <div className="px-8 py-6 border-b border-border-subtle bg-white/5 shrink-0">
+                            <h2 className="text-xl font-black tracking-tight flex items-center gap-3">
                                 <AlertCircle className="text-brand-primary" />
                                 Confirm New Creators
                             </h2>
                             <p className="text-slate-500 text-sm mt-1">We found some creators that aren't in your database or match existing ones.</p>
                         </div>
-                        <div className="p-10 space-y-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                        <div className="p-8 space-y-4 overflow-y-auto custom-scrollbar flex-grow">
                             {analysis.matches.filter((m: CreatorMatch) => m.needsConfirmation).map((match: CreatorMatch, idx: number) => (
                                 <div key={idx} className="bg-white/5 border border-white/5 rounded-2xl p-6 space-y-4">
                                     <div className="flex justify-between items-center">
@@ -489,7 +562,7 @@ const DashboardContent: React.FC = () => {
                                 </div>
                             ))}
                         </div>
-                        <div className="p-10 border-t border-border-subtle bg-white/5 flex gap-4">
+                        <div className="p-8 border-t border-border-subtle bg-white/5 shrink-0 flex gap-4">
                             <button
                                 onClick={handleConfirmScan}
                                 disabled={pendingConfirmations.length > 0}
@@ -515,7 +588,10 @@ const DashboardContent: React.FC = () => {
 
             {/* Edit Creator Modal */}
             {editingCreator && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-xl z-50 flex items-center justify-center p-6 animate-in fade-in duration-300">
+                <div
+                    className="fixed inset-0 bg-black/80 backdrop-blur-xl z-50 flex items-center justify-center p-6 animate-in fade-in duration-300"
+                    onClick={(e) => { if (e.target === e.currentTarget) setEditingCreator(null); }}
+                >
                     <div className="bg-bg-card border border-border-subtle rounded-[2rem] w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
                         <div className="px-10 py-8 border-b border-border-subtle bg-white/5">
                             <h2 className="text-2xl font-black tracking-tight">Edit "{editingCreator.name}"</h2>
@@ -563,20 +639,51 @@ const DashboardContent: React.FC = () => {
 
             {/* Report Options Modal */}
             {showReportOptions && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-xl z-50 flex items-center justify-center p-6 animate-in fade-in duration-300">
-                    <div className="bg-bg-card border border-border-subtle rounded-[2rem] w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
-                        <div className="px-10 py-8 border-b border-border-subtle bg-white/5 bg-gradient-to-r from-brand-primary/5 to-transparent">
-                            <h2 className="text-2xl font-black tracking-tight flex items-center gap-3">
+                <div
+                    className="fixed inset-0 bg-black/80 backdrop-blur-xl z-50 flex items-center justify-center p-6 animate-in fade-in duration-300"
+                    onClick={(e) => { if (e.target === e.currentTarget) setShowReportOptions(false); }}
+                >
+                    <div className="bg-bg-card border border-border-subtle rounded-[2rem] w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
+                        <div className="px-8 py-6 border-b border-border-subtle bg-white/5 bg-gradient-to-r from-brand-primary/5 to-transparent shrink-0">
+                            <h2 className="text-xl font-black tracking-tight flex items-center gap-3">
                                 <Clipboard className="text-brand-primary" />
-                                {reportSource === 'library' ? 'Full Library Report' : 'Scan Report'}
+                                Report Generation
                             </h2>
                             <p className="text-slate-500 text-sm mt-1">
-                                {reportSource === 'library'
-                                    ? 'Select details to include for your entire collection.'
-                                    : `Generating report for ${results.length} recently scanned items.`}
+                                Select a scan from your history to generate a report.
                             </p>
                         </div>
-                        <div className="p-10 space-y-6">
+                        <div className="p-8 space-y-6 overflow-y-auto custom-scrollbar">
+
+                            {/* Scan Selector */}
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold uppercase tracking-widest text-slate-500 pl-1">Select Scan</label>
+                                <select
+                                    className="w-full bg-bg-dark border border-white/5 rounded-xl px-4 py-3 text-slate-200 outline-none focus:border-brand-primary/50 transition-colors"
+                                    value={reportSource.contextName}
+                                    onChange={(e) => {
+                                        const selectedLog = history.find(h => h.fileName === e.target.value);
+                                        if (selectedLog) {
+                                            let items: string[] = [];
+                                            try {
+                                                items = selectedLog.scannedFiles ? JSON.parse(selectedLog.scannedFiles) : [];
+                                            } catch (err) { console.error(err); }
+
+                                            setReportSource({
+                                                type: 'scan',
+                                                contextName: selectedLog.fileName,
+                                                items: items
+                                            });
+                                        }
+                                    }}
+                                >
+                                    {history.map(log => (
+                                        <option key={log.id} value={log.fileName}>
+                                            {log.fileName} ({new Date(log.scanDate).toLocaleDateString()}) - {log.itemsFound} items
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
 
                             {/* Toggle Options */}
                             <div className="space-y-4">
@@ -658,7 +765,10 @@ const DashboardContent: React.FC = () => {
 
             {/* Report Modal */}
             {showReport && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-xl z-50 flex items-center justify-center p-6 animate-in fade-in duration-300">
+                <div
+                    className="fixed inset-0 bg-black/80 backdrop-blur-xl z-50 flex items-center justify-center p-6 animate-in fade-in duration-300"
+                    onClick={(e) => { if (e.target === e.currentTarget) setShowReport(false); }}
+                >
                     <div className="bg-bg-card border border-border-subtle rounded-[2rem] w-full max-w-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
                         <div className="px-10 py-8 border-b border-border-subtle flex justify-between items-center bg-white/5">
                             <div>
@@ -701,7 +811,7 @@ const DashboardContent: React.FC = () => {
                                 </button>
                                 <button
                                     onClick={() => setShowReport(false)}
-                                    className="px-10 py-5 bg-white/5 hover:bg-white/10 rounded-[1.25rem] font-bold text-slate-400 transition-all border border-white/5 hover:text-slate-200"
+                                    className="px-10 py-5 bg-white/5 hover:bg-white/10 rounded-xl font-bold text-slate-400 transition-all border border-white/5 hover:text-slate-200"
                                 >
                                     Close
                                 </button>
