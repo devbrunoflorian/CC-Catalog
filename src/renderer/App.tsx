@@ -561,4 +561,12 @@ const DashboardContent: React.FC = () => {
     );
 };
 
+const App: React.FC = () => {
+    return (
+        <ThemeProvider>
+            <DashboardContent />
+        </ThemeProvider>
+    );
+};
+
 export default App;
