@@ -9,7 +9,10 @@ import {
     History,
     Settings,
     Search,
-    X
+    X,
+    AlertCircle,
+    UserPlus,
+    Link2
 } from 'lucide-react';
 
 interface CCItem {
@@ -26,6 +29,21 @@ interface Creator {
     sets: any[];
 }
 
+interface CreatorMatch {
+    foundName: string;
+    existingName?: string;
+    existingId?: string;
+    similarity: number;
+    needsConfirmation: boolean;
+}
+
+interface ScanAnalysis {
+    results: CCItem[];
+    matches: CreatorMatch[];
+}
+
+import logo from './assets/logo.png';
+
 const App: React.FC = () => {
     const [scanning, setScanning] = useState(false);
     const [results, setResults] = useState<CCItem[]>([]);
@@ -33,6 +51,10 @@ const App: React.FC = () => {
     const [showReport, setShowReport] = useState(false);
     const [reportText, setReportText] = useState('');
     const [copying, setCopying] = useState(false);
+
+    // Scan Confirmation State
+    const [analysis, setAnalysis] = useState<ScanAnalysis | null>(null);
+    const [pendingConfirmations, setPendingConfirmations] = useState<CreatorMatch[]>([]);
 
     // Creator Editing State
     const [editingCreator, setEditingCreator] = useState<Creator | null>(null);
@@ -52,14 +74,54 @@ const App: React.FC = () => {
         try {
             const data = await (window as any).electron.invoke('scan-zip');
             if (data) {
-                setResults(data);
-                loadCredits();
+                const { results: scanResults, matches } = data as ScanAnalysis;
+
+                const needsConfirm = matches.filter(m => m.needsConfirmation);
+                if (needsConfirm.length > 0) {
+                    setAnalysis({ results: scanResults, matches });
+                    setPendingConfirmations(needsConfirm);
+                } else {
+                    // No new or fuzzy creators, just process everything
+                    await (window as any).electron.invoke('confirm-scan', {
+                        results: scanResults,
+                        matches
+                    });
+                    setResults(scanResults);
+                    loadCredits();
+                }
             }
         } catch (error) {
             console.error('Scan failed:', error);
         } finally {
             setScanning(false);
         }
+    };
+
+    const handleConfirmScan = async () => {
+        if (!analysis) return;
+
+        await (window as any).electron.invoke('confirm-scan', {
+            results: analysis.results,
+            matches: analysis.matches
+        });
+
+        setResults(analysis.results);
+        setAnalysis(null);
+        setPendingConfirmations([]);
+        loadCredits();
+    };
+
+    const updateMatch = (foundName: string, updates: Partial<CreatorMatch>) => {
+        if (!analysis) return;
+        setAnalysis({
+            ...analysis,
+            matches: analysis.matches.map((m: CreatorMatch) =>
+                m.foundName === foundName ? { ...m, ...updates } : m
+            )
+        });
+        setPendingConfirmations((prev: CreatorMatch[]) =>
+            prev.filter((m: CreatorMatch) => m.foundName !== foundName)
+        );
     };
 
     const handleGenerateReport = async () => {
@@ -89,9 +151,7 @@ const App: React.FC = () => {
             {/* Sidebar */}
             <aside className="w-64 border-r border-border-subtle bg-bg-card flex flex-col p-6 shadow-xl z-10 text-slate-400">
                 <div className="flex items-center gap-3 mb-10 px-2 text-slate-200">
-                    <div className="w-10 h-10 bg-brand-primary rounded-xl flex items-center justify-center shadow-lg shadow-brand-primary/20">
-                        <Package className="text-white w-6 h-6" />
-                    </div>
+                    <img src={logo} alt="Logo" className="w-10 h-10 object-contain rounded-xl" />
                     <span className="font-bold text-xl tracking-tight">Simscredit</span>
                 </div>
 
@@ -174,7 +234,7 @@ const App: React.FC = () => {
                                     </div>
                                 ) : (
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {credits.map((creator) => (
+                                        {credits.map((creator: Creator) => (
                                             <div key={creator.id} className="bg-bg-card border border-border-subtle rounded-2xl p-5 hover-lift">
                                                 <div className="flex justify-between items-start mb-4">
                                                     <div>
@@ -247,7 +307,7 @@ const App: React.FC = () => {
                                                 Successfully identified {results.length} items
                                             </div>
                                             <div className="space-y-3 overflow-y-auto custom-scrollbar flex-grow pr-1">
-                                                {results.map((item, idx) => (
+                                                {results.map((item: CCItem, idx: number) => (
                                                     <div key={idx} className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col gap-1 hover:bg-white/[0.08] transition-colors group">
                                                         <span className="text-[10px] text-brand-secondary font-bold uppercase tracking-wider">{item.creatorName}</span>
                                                         <span className="text-sm text-slate-300 truncate font-medium">{item.fileName}</span>
@@ -263,6 +323,94 @@ const App: React.FC = () => {
                     </div>
                 </div>
             </main>
+
+            {/* Scan Confirmation Modal */}
+            {analysis && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-xl z-50 flex items-center justify-center p-6 animate-in fade-in duration-300">
+                    <div className="bg-bg-card border border-border-subtle rounded-[2rem] w-full max-w-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+                        <div className="px-10 py-8 border-b border-border-subtle bg-white/5">
+                            <h2 className="text-2xl font-black tracking-tight flex items-center gap-3">
+                                <AlertCircle className="text-brand-primary" />
+                                Confirm New Creators
+                            </h2>
+                            <p className="text-slate-500 text-sm mt-1">We found some creators that aren't in your database or match existing ones.</p>
+                        </div>
+                        <div className="p-10 space-y-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                            {analysis.matches.filter((m: CreatorMatch) => m.needsConfirmation).map((match: CreatorMatch, idx: number) => (
+                                <div key={idx} className="bg-white/5 border border-white/5 rounded-2xl p-6 space-y-4">
+                                    <div className="flex justify-between items-center">
+                                        <div className="flex flex-col">
+                                            <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Found in ZIP</span>
+                                            <span className="text-lg font-bold text-brand-primary">{match.foundName}</span>
+                                        </div>
+                                        {match.similarity > 0 && (
+                                            <div className="text-right">
+                                                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Match Strength</span>
+                                                <div className="text-green-500 font-black">{(match.similarity * 100).toFixed(0)}%</div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {match.existingName ? (
+                                        <div className="bg-bg-dark rounded-xl p-4 border border-white/5">
+                                            <div className="text-xs font-bold text-slate-500 uppercase mb-2">Similar to existing:</div>
+                                            <div className="flex items-center justify-between">
+                                                <span className="font-semibold text-slate-300">{match.existingName}</span>
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => updateMatch(match.foundName, { needsConfirmation: false })}
+                                                        className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-xs font-bold flex items-center gap-2 transition-all border border-white/5"
+                                                    >
+                                                        <Link2 size={14} />
+                                                        Use Existing
+                                                    </button>
+                                                    <button
+                                                        onClick={() => updateMatch(match.foundName, { existingId: undefined, existingName: undefined, needsConfirmation: false, similarity: 0 })}
+                                                        className="px-4 py-2 bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-secondary rounded-lg text-xs font-bold flex items-center gap-2 transition-all"
+                                                    >
+                                                        <UserPlus size={14} />
+                                                        Create New
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center justify-between bg-bg-dark rounded-xl p-4 border border-white/5">
+                                            <span className="text-sm text-slate-400">This looks like a new creator.</span>
+                                            <button
+                                                onClick={() => updateMatch(match.foundName, { needsConfirmation: false })}
+                                                className="px-4 py-2 bg-brand-primary text-white rounded-lg text-xs font-black uppercase tracking-widest transition-all"
+                                            >
+                                                Register New
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                        <div className="p-10 border-t border-border-subtle bg-white/5 flex gap-4">
+                            <button
+                                onClick={handleConfirmScan}
+                                disabled={pendingConfirmations.length > 0}
+                                className={`flex-grow py-4 rounded-xl font-black uppercase tracking-widest text-sm shadow-xl transition-all active:scale-[0.98] ${pendingConfirmations.length > 0
+                                    ? 'bg-slate-700 text-slate-500 cursor-not-allowed shadow-none'
+                                    : 'bg-brand-primary hover:bg-brand-secondary text-white shadow-brand-primary/20'
+                                    }`}
+                            >
+                                {pendingConfirmations.length > 0
+                                    ? `Review ${pendingConfirmations.length} more...`
+                                    : 'Process Library Update'}
+                            </button>
+                            <button
+                                onClick={() => { setAnalysis(null); setPendingConfirmations([]); }}
+                                className="px-8 py-4 bg-white/5 hover:bg-white/10 rounded-xl font-bold text-slate-400 transition-all border border-white/5"
+                            >
+                                Cancel Scan
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Edit Creator Modal */}
             {editingCreator && (
@@ -371,3 +519,4 @@ const App: React.FC = () => {
 };
 
 export default App;
+

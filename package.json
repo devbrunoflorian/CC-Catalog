@@ -73,8 +73,6 @@
   "dependencies": {
     "adm-zip": "^0.5.16",
     "better-sqlite3": "^11.8.1",
-    "lucide-react": "^0.474.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "lucide-react": "^0.474.0"
   }
 }

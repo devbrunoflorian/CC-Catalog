@@ -26,14 +26,24 @@ ipcMain.handle('scan-zip', async () => {
     if (canceled || filePaths.length === 0) return null;
 
     try {
-        const results = ZipScanner.scanZip(filePaths[0]);
-        await ZipScanner.processScanResults(results);
-        return results;
+        const analysis = ZipScanner.scanZip(filePaths[0]);
+        return analysis;
     } catch (error) {
         console.error('Scan failed:', error);
         throw error;
     }
 });
+
+ipcMain.handle('confirm-scan', async (_, { results, matches }: any) => {
+    try {
+        await ZipScanner.processScanResults(results, matches);
+        return { success: true };
+    } catch (error) {
+        console.error('Confirmation failed:', error);
+        throw error;
+    }
+});
+
 
 ipcMain.handle('get-credits', async () => {
     // Basic query to get grouped credits for the UI
@@ -55,11 +65,13 @@ process.env.DIST = join(__dirname, '../..');
 process.env.VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL'] || '';
 
 let win: BrowserWindow | null = null;
+let splashWin: BrowserWindow | null = null;
 
 function createWindow() {
     win = new BrowserWindow({
         width: 1200,
         height: 800,
+        show: false, // Start hidden
         webPreferences: {
             preload: join(__dirname, 'preload.js'),
             nodeIntegration: false,
@@ -76,7 +88,43 @@ function createWindow() {
     }
 }
 
-app.whenReady().then(createWindow);
+function createSplashWindow() {
+    splashWin = new BrowserWindow({
+        width: 500,
+        height: 500,
+        transparent: true,
+        frame: false,
+        alwaysOnTop: true,
+        webPreferences: {
+            preload: join(__dirname, 'preload.js'),
+            nodeIntegration: false,
+            contextIsolation: true,
+        },
+    });
+
+    if (process.env.VITE_DEV_SERVER_URL) {
+        splashWin.loadURL(`${process.env.VITE_DEV_SERVER_URL}splash.html`);
+    } else {
+        // In production, public files are copied to dist which is accessed as renderer
+        splashWin.loadFile(join(process.env.DIST!, 'renderer/splash.html'));
+    }
+
+    splashWin.on('closed', () => (splashWin = null));
+}
+
+app.whenReady().then(() => {
+    createSplashWindow();
+    createWindow();
+});
+
+ipcMain.on('splash-finished', () => {
+    if (splashWin) {
+        splashWin.close();
+    }
+    if (win) {
+        win.show();
+    }
+});
 
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {

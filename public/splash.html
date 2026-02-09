@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loading...</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: transparent;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+    </style>
+</head>
+
+<body>
+    <video id="splashVideo" autoplay muted playsinline>
+        <source src="splash.mp4" type="video/mp4">
+    </video>
+    <script>
+        const video = document.getElementById('splashVideo');
+
+        const finishSplash = () => {
+            if (window.electron) {
+                window.electron.send('splash-finished');
+            }
+        };
+
+        video.onended = finishSplash;
+
+        // Fallback in case video fails or is too short/long
+        setTimeout(finishSplash, 4000); // 4s fallback (video length usually < 5s)
+    </script>
+</body>
+
+</html>
