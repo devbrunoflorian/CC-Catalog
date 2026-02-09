@@ -2,9 +2,9 @@
   <img src="src/renderer/assets/logo.png" width="128" alt="Simscredit Logo">
 </p>
 
-# Simscredit (CCCC)
+# CC Catalog
 
-Simscredit is a specialized tool for The Sims content creators and curators to manage Custom Content (CC) credits efficiently. It automates the process of identifying creators and items from ZIP files and generates formatted markdown reports.
+CC Catalog is a specialized tool for The Sims content creators and curators to manage Custom Content (CC) credits efficiently. It automates the process of identifying creators and items from ZIP files and generates formatted markdown reports.
 
 ## Features
 
@@ -60,7 +60,7 @@ The tool expects ZIP files to have a specific structure for optimal identificati
 - `Creator/SetName/ItemName.package`
 - `Mods/Creator/SetName/ItemName.package`
 
-When a ZIP is scanned, Simscredit analyzes the creators found. If a name is similar to one already in your database (e.g., "Felixand" vs "Felixandre"), the app will prompt you to confirm if it should use the existing record or create a new one.
+When a ZIP is scanned, CC Catalog analyzes the creators found. If a name is similar to one already in your database (e.g., "Felixand" vs "Felixandre"), the app will prompt you to confirm if it should use the existing record or create a new one.
 
 ## Completed Features
 

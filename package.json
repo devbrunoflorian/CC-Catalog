@@ -13,8 +13,8 @@
     "dist": "npm run build && electron-builder"
   },
   "build": {
-    "appId": "com.bruno.simscredit",
-    "productName": "Simscredit",
+    "appId": "com.bruno.cccatalog",
+    "productName": "CC Catalog",
     "directories": {
       "output": "release/${version}"
     },
@@ -39,7 +39,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Simscredit"
+      "shortcutName": "CC Catalog"
     }
   },
   "keywords": [],

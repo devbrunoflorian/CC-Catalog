@@ -77,7 +77,7 @@ function createWindow() {
             nodeIntegration: false,
             contextIsolation: true,
         },
-        title: 'Sims 4 CC Credit Generator',
+        title: 'CC Catalog',
         backgroundColor: '#1e1e1e',
     });
 

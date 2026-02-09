@@ -152,7 +152,7 @@ const App: React.FC = () => {
             <aside className="w-64 border-r border-border-subtle bg-bg-card flex flex-col p-6 shadow-xl z-10 text-slate-400">
                 <div className="flex items-center gap-3 mb-10 px-2 text-slate-200">
                     <img src={logo} alt="Logo" className="w-10 h-10 object-contain rounded-xl" />
-                    <span className="font-bold text-xl tracking-tight">Simscredit</span>
+                    <span className="font-bold text-xl tracking-tight">CC Catalog</span>
                 </div>
 
                 <nav className="space-y-2 flex-grow">
