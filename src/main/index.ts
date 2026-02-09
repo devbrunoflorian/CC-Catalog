@@ -25,10 +25,7 @@ const __dirname = dirname(__filename);
 
 let dbInitialized = false;
 
-ipcMain.handle('generate-report', async () => {
-    if (!dbInitialized) throw new Error('Database not initialized');
-    return ReportGenerator.generateMarkdown();
-});
+
 
 ipcMain.handle('get-history', async () => {
     if (!dbInitialized) throw new Error('Database not initialized');
@@ -496,21 +493,40 @@ function createSplashWindow() {
     splashWin.on('closed', () => (splashWin = null));
 }
 
-app.whenReady().then(async () => {
-    console.log('[MAIN] app ready');
+const gotTheLock = app.requestSingleInstanceLock();
 
-    try {
-        console.log('[MAIN] initDatabase start');
-        await initDatabase();
-        console.log('[MAIN] initDatabase OK');
-        dbInitialized = true;
-    } catch (err) {
-        console.error('[MAIN] initDatabase FAILED', err);
-        process.exit(1);
-    }
+if (!gotTheLock) {
+    app.quit();
+} else {
+    app.on('second-instance', () => {
+        // Someone tried to run a second instance, we should focus our window.
+        if (win) {
+            if (win.isMinimized()) win.restore();
+            win.focus();
+        }
+    });
 
-    createSplashWindow();
-    createWindow();
+    app.whenReady().then(async () => {
+        console.log('[MAIN] app ready');
+
+        try {
+            console.log('[MAIN] initDatabase start');
+            await initDatabase();
+            console.log('[MAIN] initDatabase OK');
+            dbInitialized = true;
+        } catch (err) {
+            console.error('[MAIN] initDatabase FAILED', err);
+            process.exit(1);
+        }
+
+        createSplashWindow();
+        createWindow();
+    });
+}
+
+ipcMain.handle('generate-report', async (_, options) => {
+    if (!dbInitialized) throw new Error('Database not initialized');
+    return ReportGenerator.generateMarkdown(options);
 });
 
 ipcMain.on('splash-finished', () => {

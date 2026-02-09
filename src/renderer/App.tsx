@@ -131,9 +131,30 @@ const DashboardContent: React.FC = () => {
         );
     };
 
+    const [showReportOptions, setShowReportOptions] = useState(false);
+    const [reportSource, setReportSource] = useState<'library' | 'scan'>('library');
+    const [reportConfig, setReportConfig] = useState({
+        includeCreators: true,
+        includeSets: true,
+        includeItems: true,
+        includeCategory: true
+    });
+
+    const handleOpenReportOptions = (source: 'library' | 'scan' = 'library') => {
+        setReportSource(source);
+        setShowReportOptions(true);
+    };
+
     const handleGenerateReport = async () => {
-        const text = await (window as any).electron.invoke('generate-report');
+        const config: any = { ...reportConfig };
+
+        if (reportSource === 'scan' && results.length > 0) {
+            config.filterFileNames = results.map(r => r.fileName);
+        }
+
+        const text = await (window as any).electron.invoke('generate-report', config);
         setReportText(text);
+        setShowReportOptions(false);
         setShowReport(true);
     };
 
@@ -245,7 +266,7 @@ const DashboardContent: React.FC = () => {
 
                     <div className="flex gap-4">
                         <button
-                            onClick={handleGenerateReport}
+                            onClick={() => handleOpenReportOptions('library')}
                             className="flex items-center gap-2 px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-semibold transition-all"
                         >
                             <Clipboard size={18} />
@@ -355,9 +376,18 @@ const DashboardContent: React.FC = () => {
                                             </div>
                                         ) : (
                                             <div className="flex flex-col h-full overflow-hidden">
-                                                <div className="flex items-center gap-2 text-green-400 text-sm font-bold mb-6 shrink-0">
-                                                    <CheckCircle2 size={18} />
-                                                    Successfully identified {results.length} items
+                                                <div className="flex items-center justify-between mb-6 shrink-0">
+                                                    <div className="flex items-center gap-2 text-green-400 text-sm font-bold">
+                                                        <CheckCircle2 size={18} />
+                                                        Successfully identified {results.length} items
+                                                    </div>
+                                                    <button
+                                                        onClick={() => handleOpenReportOptions('scan')}
+                                                        className="text-xs bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg border border-white/5 transition-colors flex items-center gap-2 font-medium text-slate-300 hover:text-white"
+                                                    >
+                                                        <Clipboard size={14} />
+                                                        Create Scan Report
+                                                    </button>
                                                 </div>
                                                 <div className="space-y-3 overflow-y-auto custom-scrollbar flex-grow pr-1">
                                                     {results.map((item: CCItem, idx: number) => (
@@ -521,6 +551,101 @@ const DashboardContent: React.FC = () => {
                                 </button>
                                 <button
                                     onClick={() => setEditingCreator(null)}
+                                    className="px-8 py-4 bg-white/5 hover:bg-white/10 rounded-xl font-bold text-slate-400 transition-all border border-white/5"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Report Options Modal */}
+            {showReportOptions && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-xl z-50 flex items-center justify-center p-6 animate-in fade-in duration-300">
+                    <div className="bg-bg-card border border-border-subtle rounded-[2rem] w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+                        <div className="px-10 py-8 border-b border-border-subtle bg-white/5 bg-gradient-to-r from-brand-primary/5 to-transparent">
+                            <h2 className="text-2xl font-black tracking-tight flex items-center gap-3">
+                                <Clipboard className="text-brand-primary" />
+                                {reportSource === 'library' ? 'Full Library Report' : 'Scan Report'}
+                            </h2>
+                            <p className="text-slate-500 text-sm mt-1">
+                                {reportSource === 'library'
+                                    ? 'Select details to include for your entire collection.'
+                                    : `Generating report for ${results.length} recently scanned items.`}
+                            </p>
+                        </div>
+                        <div className="p-10 space-y-6">
+
+                            {/* Toggle Options */}
+                            <div className="space-y-4">
+                                <label className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 cursor-pointer hover:border-brand-primary/30 transition-all group">
+                                    <div className="flex flex-col">
+                                        <span className="font-bold text-slate-200 group-hover:text-brand-secondary transition-colors">Include Creators</span>
+                                        <span className="text-xs text-slate-500">Show creator names with hyperlinks (if available)</span>
+                                    </div>
+                                    <input
+                                        type="checkbox"
+                                        className="w-6 h-6 accent-brand-primary rounded-lg"
+                                        checked={reportConfig.includeCreators}
+                                        onChange={e => setReportConfig({ ...reportConfig, includeCreators: e.target.checked })}
+                                    />
+                                </label>
+
+                                <label className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 cursor-pointer hover:border-brand-primary/30 transition-all group">
+                                    <div className="flex flex-col">
+                                        <span className="font-bold text-slate-200 group-hover:text-brand-secondary transition-colors">Include Sets</span>
+                                        <span className="text-xs text-slate-500">List sets under each creator with hyperlinks</span>
+                                    </div>
+                                    <input
+                                        type="checkbox"
+                                        className="w-6 h-6 accent-brand-primary rounded-lg"
+                                        checked={reportConfig.includeSets}
+                                        disabled={!reportConfig.includeCreators} // Typically sets belong to creators, but user might want flat list? Assuming hierarchy.
+                                        onChange={e => setReportConfig({ ...reportConfig, includeSets: e.target.checked })}
+                                    />
+                                </label>
+
+                                <label className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 cursor-pointer hover:border-brand-primary/30 transition-all group">
+                                    <div className="flex flex-col">
+                                        <span className="font-bold text-slate-200 group-hover:text-brand-secondary transition-colors">Include Set Items</span>
+                                        <span className="text-xs text-slate-500">Detailed list of files within each set</span>
+                                    </div>
+                                    <input
+                                        type="checkbox"
+                                        className="w-6 h-6 accent-brand-primary rounded-lg"
+                                        checked={reportConfig.includeItems}
+                                        disabled={!reportConfig.includeSets}
+                                        onChange={e => setReportConfig({ ...reportConfig, includeItems: e.target.checked })}
+                                    />
+                                </label>
+
+                                <label className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 cursor-pointer hover:border-brand-primary/30 transition-all group">
+                                    <div className="flex flex-col">
+                                        <span className="font-bold text-slate-200 group-hover:text-brand-secondary transition-colors">Include Category</span>
+                                        <span className="text-xs text-slate-500">Show category next to item name</span>
+                                    </div>
+                                    <input
+                                        type="checkbox"
+                                        className="w-6 h-6 accent-brand-primary rounded-lg"
+                                        checked={reportConfig.includeCategory}
+                                        disabled={!reportConfig.includeItems}
+                                        onChange={e => setReportConfig({ ...reportConfig, includeCategory: e.target.checked })}
+                                    />
+                                </label>
+                            </div>
+
+                            <div className="flex gap-4 pt-4 border-t border-white/5">
+                                <button
+                                    onClick={handleGenerateReport}
+                                    className="flex-grow py-4 bg-brand-primary hover:bg-brand-secondary text-white rounded-xl font-black uppercase tracking-widest text-sm shadow-xl shadow-brand-primary/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                                >
+                                    <Clipboard size={18} />
+                                    Generate Report
+                                </button>
+                                <button
+                                    onClick={() => setShowReportOptions(false)}
                                     className="px-8 py-4 bg-white/5 hover:bg-white/10 rounded-xl font-bold text-slate-400 transition-all border border-white/5"
                                 >
                                     Cancel
