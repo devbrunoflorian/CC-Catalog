@@ -9,40 +9,187 @@
         body {
             margin: 0;
             padding: 0;
-            background: transparent;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: #0b0b0f;
+            /* bg-dark equivalent */
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
             overflow: hidden;
+            -webkit-app-region: drag;
+            user-select: none;
+        }
+
+        .container {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 24px;
+            animation: fadeIn 0.8s ease-out forwards;
+        }
+
+        .logo-container {
+            width: 80px;
+            height: 80px;
+            position: relative;
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
-            width: 100vw;
         }
 
-        video {
+        .logo-bg {
+            position: absolute;
             width: 100%;
             height: 100%;
-            object-fit: contain;
+            border-radius: 20px;
+            background: linear-gradient(135deg, #7c3aed, #a78bfa);
+            /* brand-primary to brand-secondary */
+            opacity: 0.2;
+            filter: blur(20px);
+            animation: pulse 3s infinite ease-in-out;
+        }
+
+        .logo-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #7c3aed, #8b5cf6);
+            box-shadow: 0 0 20px rgba(124, 58, 237, 0.4);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-weight: bold;
+            font-size: 24px;
+            z-index: 2;
+            animation: float 4s infinite ease-in-out;
+        }
+
+        .title {
+            color: #e2e8f0;
+            /* slate-200 */
+            font-size: 24px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+            opacity: 0;
+            animation: slideUp 0.6s ease-out 0.3s forwards;
+        }
+
+        .loader {
+            width: 160px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            margin-top: 16px;
+            overflow: hidden;
+            opacity: 0;
+            animation: fadeIn 0.6s ease-out 0.6s forwards;
+        }
+
+        .loader-bar {
+            width: 40%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, #7c3aed, #a78bfa, transparent);
+            border-radius: 2px;
+            animation: loading 2s infinite ease-in-out;
+            transform: translateX(-100%);
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 0.2;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 0.3;
+                transform: scale(1.1);
+            }
+
+            100% {
+                opacity: 0.2;
+                transform: scale(1);
+            }
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(0);
+                box-shadow: 0 5px 15px rgba(124, 58, 237, 0.4);
+            }
+
+            50% {
+                transform: translateY(-6px);
+                box-shadow: 0 15px 30px rgba(124, 58, 237, 0.3);
+            }
+
+            100% {
+                transform: translateY(0);
+                box-shadow: 0 5px 15px rgba(124, 58, 237, 0.4);
+            }
+        }
+
+        @keyframes loading {
+            0% {
+                transform: translateX(-100%);
+            }
+
+            50% {
+                transform: translateX(100%);
+            }
+
+            100% {
+                transform: translateX(300%);
+            }
+
+            /* Ensure it goes completely off screen before repeating */
         }
     </style>
 </head>
 
 <body>
-    <video id="splashVideo" autoplay muted playsinline>
-        <source src="splash.mp4" type="video/mp4">
-    </video>
+    <div class="container">
+        <div class="logo-container">
+            <div class="logo-bg"></div>
+            <div class="logo-icon">CC</div>
+        </div>
+        <div class="title">CC Catalog</div>
+        <div class="loader">
+            <div class="loader-bar"></div>
+        </div>
+    </div>
     <script>
-        const video = document.getElementById('splashVideo');
-
-        const finishSplash = () => {
-            if (window.electron) {
-                window.electron.send('splash-finished');
-            }
-        };
-
-        video.onended = finishSplash;
-
-        // Fallback in case video fails or is too short/long
-        setTimeout(finishSplash, 4000); // 4s fallback (video length usually < 5s)
+        const { ipcRenderer } = require('electron');
+        // Wait for app ready signal or simulate delay
+        setTimeout(() => {
+            ipcRenderer.send('splash-finished');
+        }, 2000); // Allow splash to be seen for at least 2s
     </script>
 </body>
 

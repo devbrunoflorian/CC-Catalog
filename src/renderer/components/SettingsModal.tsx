@@ -41,8 +41,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                                     key={color.id}
                                     onClick={() => setThemeColor(color.id)}
                                     className={`relative p-4 rounded-xl border transition-all flex items-center justify-between group ${themeColor === color.id
-                                            ? 'border-brand-primary bg-brand-primary/10'
-                                            : 'border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/10'
+                                        ? 'border-brand-primary bg-brand-primary/10'
+                                        : 'border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/10'
                                         }`}
                                 >
                                     <div className="flex items-center gap-3">
@@ -76,6 +76,36 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                             className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-brand-primary hover:accent-brand-secondary"
                         />
                         <p className="text-xs text-slate-500">Adjust the transparency of the application background to see the window effect.</p>
+                    </div>
+
+                    {/* Data Management */}
+                    <div className="space-y-4 border-t border-white/5 pt-6">
+                        <label className="text-sm font-medium text-slate-300 uppercase tracking-wider block">Library Management</label>
+                        <div className="flex gap-4">
+                            <button
+                                onClick={async () => {
+                                    const res = await (window as any).electron.invoke('export-csv');
+                                    if (res.success) alert('Library exported successfully!');
+                                }}
+                                className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl py-3 px-4 text-sm font-medium text-slate-300 hover:text-white transition-all flex items-center justify-center gap-2"
+                            >
+                                <span>Export CSV</span>
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    if (!confirm('This will update your library structure based on the CSV. Continue?')) return;
+                                    const res = await (window as any).electron.invoke('import-csv');
+                                    if (res.success) alert(`Library updated! ${res.count} lines processed.`);
+                                }}
+                                className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl py-3 px-4 text-sm font-medium text-slate-300 hover:text-white transition-all flex items-center justify-center gap-2"
+                            >
+                                <span>Import CSV</span>
+                            </button>
+                        </div>
+                        <p className="text-xs text-slate-500">
+                            Export your library to edit organization in Excel, then import it back.
+                            Format: Creator, P/W, Set, P/W, Items.
+                        </p>
                     </div>
                 </div>
             </div>

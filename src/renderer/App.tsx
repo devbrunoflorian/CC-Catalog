@@ -14,6 +14,8 @@ import {
     UserPlus,
     Link2
 } from 'lucide-react';
+import CreatorsView from './components/CreatorsView';
+import HistoryView from './components/HistoryView';
 import logo from './assets/logo.png';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import SettingsModal from './components/SettingsModal';
@@ -48,6 +50,7 @@ interface ScanAnalysis {
 const DashboardContent: React.FC = () => {
     const { themeColor, opacity } = useTheme();
     const [showSettings, setShowSettings] = useState(false);
+    const [currentView, setCurrentView] = useState<'dashboard' | 'creators' | 'history'>('dashboard');
 
     const [scanning, setScanning] = useState(false);
     const [results, setResults] = useState<CCItem[]>([]);
@@ -184,24 +187,33 @@ const DashboardContent: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen text-slate-200 flex font-sans transition-colors duration-500" style={getBackgroundStyle()}>
+        <div className="h-screen text-slate-200 flex font-sans transition-colors duration-500 overflow-hidden" style={getBackgroundStyle()}>
             {/* Sidebar */}
-            <aside className="w-64 border-r border-border-subtle bg-bg-card/50 flex flex-col p-6 shadow-xl z-10 text-slate-400 backdrop-blur-sm">
+            <aside className="w-64 border-r border-border-subtle bg-bg-card/50 flex flex-col p-6 shadow-xl z-10 text-slate-400 backdrop-blur-sm shrink-0">
                 <div className="flex items-center gap-3 mb-10 px-2 text-slate-200">
                     <img src={logo} alt="Logo" className="w-10 h-10 object-contain rounded-xl" />
                     <span className="font-bold text-xl tracking-tight">CC Catalog</span>
                 </div>
 
                 <nav className="space-y-2 flex-grow">
-                    <button className="w-full flex items-center gap-3 px-4 py-3 bg-brand-primary/10 text-brand-secondary rounded-xl font-medium transition-all">
+                    <button
+                        onClick={() => setCurrentView('dashboard')}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${currentView === 'dashboard' ? 'bg-brand-primary/10 text-brand-secondary' : 'hover:text-slate-200 hover:bg-white/5'}`}
+                    >
                         <Package size={20} />
                         Dashboard
                     </button>
-                    <button className="w-full flex items-center gap-3 px-4 py-3 hover:text-slate-200 hover:bg-white/5 rounded-xl font-medium transition-all">
+                    <button
+                        onClick={() => setCurrentView('creators')}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${currentView === 'creators' ? 'bg-brand-primary/10 text-brand-secondary' : 'hover:text-slate-200 hover:bg-white/5'}`}
+                    >
                         <CreditCard size={20} />
                         Creators
                     </button>
-                    <button className="w-full flex items-center gap-3 px-4 py-3 hover:text-slate-200 hover:bg-white/5 rounded-xl font-medium transition-all">
+                    <button
+                        onClick={() => setCurrentView('history')}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${currentView === 'history' ? 'bg-brand-primary/10 text-brand-secondary' : 'hover:text-slate-200 hover:bg-white/5'}`}
+                    >
                         <History size={20} />
                         History
                     </button>
@@ -252,116 +264,132 @@ const DashboardContent: React.FC = () => {
                 </header>
 
                 {/* Dashboard Grid */}
-                <div className="p-8 overflow-y-auto custom-scrollbar flex-grow">
-                    <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 max-w-[1600px] mx-auto">
-                        {/* Summary Column */}
-                        <div className="xl:col-span-2 space-y-8">
-                            <section>
-                                <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-                                    <div className="w-1.5 h-6 bg-brand-primary rounded-full" />
-                                    Your CC Library
-                                </h2>
+                {currentView === 'dashboard' && (
+                    <div className="p-8 overflow-y-auto custom-scrollbar flex-grow">
+                        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 max-w-[1600px] mx-auto">
+                            {/* Summary Column */}
+                            <div className="xl:col-span-2 space-y-8">
+                                <section>
+                                    <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+                                        <div className="w-1.5 h-6 bg-brand-primary rounded-full" />
+                                        Your CC Library
+                                    </h2>
 
-                                {credits.length === 0 ? (
-                                    <div className="glass-effect rounded-2xl p-20 text-center space-y-4 border-2 border-dashed border-white/5">
-                                        <div className="w-20 h-20 bg-brand-primary/5 rounded-full flex items-center justify-center mx-auto mb-2">
-                                            <Package className="text-brand-primary w-10 h-10 opacity-40" />
+                                    {credits.length === 0 ? (
+                                        <div className="glass-effect rounded-2xl p-20 text-center space-y-4 border-2 border-dashed border-white/5">
+                                            <div className="w-20 h-20 bg-brand-primary/5 rounded-full flex items-center justify-center mx-auto mb-2">
+                                                <Package className="text-brand-primary w-10 h-10 opacity-40" />
+                                            </div>
+                                            <h3 className="text-lg font-semibold text-slate-300">Your library is empty</h3>
+                                            <p className="text-slate-500 max-w-sm mx-auto">
+                                                Scan your first ZIP file containing Custom Content to begin building your credits database.
+                                            </p>
                                         </div>
-                                        <h3 className="text-lg font-semibold text-slate-300">Your library is empty</h3>
-                                        <p className="text-slate-500 max-w-sm mx-auto">
-                                            Scan your first ZIP file containing Custom Content to begin building your credits database.
-                                        </p>
-                                    </div>
-                                ) : (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {credits.map((creator: Creator) => (
-                                            <div key={creator.id} className="bg-white/5 border border-border-subtle rounded-2xl p-5 hover-lift backdrop-blur-md">
-                                                <div className="flex justify-between items-start mb-4">
-                                                    <div>
-                                                        <h3 className="text-lg font-bold text-slate-200">{creator.name}</h3>
-                                                        <span className="text-xs text-brand-secondary font-medium uppercase tracking-widest leading-none">Creator</span>
-                                                    </div>
-                                                    <div className="flex gap-2">
-                                                        <button
-                                                            onClick={() => {
-                                                                setEditingCreator(creator);
-                                                                setEditForm({
-                                                                    patreon_url: creator.patreon_url || '',
-                                                                    website_url: creator.website_url || ''
-                                                                });
-                                                            }}
-                                                            className="text-slate-500 hover:text-brand-primary transition-colors p-2 -m-2"
-                                                            title="Edit Links"
-                                                        >
-                                                            <Settings size={18} />
-                                                        </button>
-                                                        {creator.patreon_url && (
-                                                            <a
-                                                                href={creator.patreon_url}
-                                                                target="_blank"
-                                                                rel="noreferrer"
+                                    ) : (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {credits.map((creator: Creator) => (
+                                                <div key={creator.id} className="bg-white/5 border border-border-subtle rounded-2xl p-5 hover-lift backdrop-blur-md">
+                                                    <div className="flex justify-between items-start mb-4">
+                                                        <div>
+                                                            <h3 className="text-lg font-bold text-slate-200">{creator.name}</h3>
+                                                            <span className="text-xs text-brand-secondary font-medium uppercase tracking-widest leading-none">Creator</span>
+                                                        </div>
+                                                        <div className="flex gap-2">
+                                                            <button
+                                                                onClick={() => {
+                                                                    setEditingCreator(creator);
+                                                                    setEditForm({
+                                                                        patreon_url: creator.patreon_url || '',
+                                                                        website_url: creator.website_url || ''
+                                                                    });
+                                                                }}
                                                                 className="text-slate-500 hover:text-brand-primary transition-colors p-2 -m-2"
+                                                                title="Edit Links"
                                                             >
-                                                                <ExternalLink size={18} />
-                                                            </a>
+                                                                <Settings size={18} />
+                                                            </button>
+                                                            {creator.patreon_url && (
+                                                                <a
+                                                                    href={creator.patreon_url}
+                                                                    target="_blank"
+                                                                    rel="noreferrer"
+                                                                    className="text-slate-500 hover:text-brand-primary transition-colors p-2 -m-2"
+                                                                >
+                                                                    <ExternalLink size={18} />
+                                                                </a>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        {creator.sets.slice(0, 3).map((set: any) => (
+                                                            <div key={set.id} className="flex items-center gap-2 text-slate-400 group">
+                                                                <div className="w-1 h-1 bg-brand-primary/50 group-hover:bg-brand-primary transition-colors rounded-full" />
+                                                                <span className="text-sm truncate">{set.name}</span>
+                                                                <span className="text-[10px] text-slate-600 font-mono ml-auto">{set.items.length} ITM</span>
+                                                            </div>
+                                                        ))}
+                                                        {creator.sets.length > 3 && (
+                                                            <div className="text-xs text-slate-600 pl-3 pt-1">+ {creator.sets.length - 3} more sets</div>
                                                         )}
                                                     </div>
                                                 </div>
-                                                <div className="space-y-2">
-                                                    {creator.sets.slice(0, 3).map((set: any) => (
-                                                        <div key={set.id} className="flex items-center gap-2 text-slate-400 group">
-                                                            <div className="w-1 h-1 bg-brand-primary/50 group-hover:bg-brand-primary transition-colors rounded-full" />
-                                                            <span className="text-sm truncate">{set.name}</span>
-                                                            <span className="text-[10px] text-slate-600 font-mono ml-auto">{set.items.length} ITM</span>
-                                                        </div>
-                                                    ))}
-                                                    {creator.sets.length > 3 && (
-                                                        <div className="text-xs text-slate-600 pl-3 pt-1">+ {creator.sets.length - 3} more sets</div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </section>
-                        </div>
-
-                        {/* Recent Activity Column */}
-                        <div>
-                            <section className="sticky top-0">
-                                <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-                                    <div className="w-1.5 h-6 bg-green-500 rounded-full" />
-                                    Last Scan Activity
-                                </h2>
-
-                                <div className="glass-effect rounded-2xl p-6 border border-border-subtle min-h-[500px] flex flex-col">
-                                    {results.length === 0 ? (
-                                        <div className="flex-grow flex flex-col items-center justify-center text-slate-600 italic">
-                                            <History size={48} className="mb-4 opacity-5 shrink-0" />
-                                            <span className="opacity-40">No recent scan activity</span>
-                                        </div>
-                                    ) : (
-                                        <div className="flex flex-col h-full overflow-hidden">
-                                            <div className="flex items-center gap-2 text-green-400 text-sm font-bold mb-6 shrink-0">
-                                                <CheckCircle2 size={18} />
-                                                Successfully identified {results.length} items
-                                            </div>
-                                            <div className="space-y-3 overflow-y-auto custom-scrollbar flex-grow pr-1">
-                                                {results.map((item: CCItem, idx: number) => (
-                                                    <div key={idx} className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col gap-1 hover:bg-white/[0.08] transition-colors group">
-                                                        <span className="text-[10px] text-brand-secondary font-bold uppercase tracking-wider">{item.creatorName}</span>
-                                                        <span className="text-sm text-slate-300 truncate font-medium">{item.fileName}</span>
-                                                        <span className="text-[10px] text-slate-600 mt-1">Set: {item.setName}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
+                                            ))}
                                         </div>
                                     )}
-                                </div>
-                            </section>
+                                </section>
+                            </div>
+
+                            {/* Recent Activity Column */}
+                            <div>
+                                <section className="sticky top-0">
+                                    <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+                                        <div className="w-1.5 h-6 bg-green-500 rounded-full" />
+                                        Last Scan Activity
+                                    </h2>
+
+                                    <div className="glass-effect rounded-2xl p-6 border border-border-subtle min-h-[500px] flex flex-col">
+                                        {results.length === 0 ? (
+                                            <div className="flex-grow flex flex-col items-center justify-center text-slate-600 italic">
+                                                <History size={48} className="mb-4 opacity-5 shrink-0" />
+                                                <span className="opacity-40">No recent scan activity</span>
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-col h-full overflow-hidden">
+                                                <div className="flex items-center gap-2 text-green-400 text-sm font-bold mb-6 shrink-0">
+                                                    <CheckCircle2 size={18} />
+                                                    Successfully identified {results.length} items
+                                                </div>
+                                                <div className="space-y-3 overflow-y-auto custom-scrollbar flex-grow pr-1">
+                                                    {results.map((item: CCItem, idx: number) => (
+                                                        <div key={idx} className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col gap-1 hover:bg-white/[0.08] transition-colors group">
+                                                            <span className="text-[10px] text-brand-secondary font-bold uppercase tracking-wider">{item.creatorName}</span>
+                                                            <span className="text-sm text-slate-300 truncate font-medium">{item.fileName}</span>
+                                                            <span className="text-[10px] text-slate-600 mt-1">Set: {item.setName}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </section>
+                            </div>
                         </div>
                     </div>
-                </div>
+                )}
+
+                {/* Creators View */}
+                {currentView === 'creators' && (
+                    <div className="p-8 overflow-hidden h-full">
+                        <CreatorsView />
+                    </div>
+                )}
+
+                {/* History View */}
+                {currentView === 'history' && (
+                    <div className="p-8 overflow-y-auto custom-scrollbar flex-grow">
+                        <HistoryView />
+                    </div>
+                )}
             </main>
 
             {/* Modals */}
