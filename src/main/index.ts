@@ -1,14 +1,20 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import { join } from 'path';
-import { initDatabase } from './db/database';
-import { ZipScanner } from './lib/ZipScanner';
-import { ReportGenerator } from './lib/ReportGenerator';
+import db, { initDatabase } from './db/database.js';
+import { ZipScanner } from './lib/ZipScanner.js';
+import { ReportGenerator } from './lib/ReportGenerator.js';
 
 // Initialize DB before window creation
 initDatabase();
 
 ipcMain.handle('generate-report', async () => {
     return ReportGenerator.generateMarkdown();
+});
+
+ipcMain.handle('update-creator', async (_, { id, patreon_url, website_url }: any) => {
+    db.prepare('UPDATE creators SET patreon_url = ?, website_url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+        .run(patreon_url, website_url, id);
+    return { success: true };
 });
 
 ipcMain.handle('scan-zip', async () => {
@@ -31,7 +37,6 @@ ipcMain.handle('scan-zip', async () => {
 
 ipcMain.handle('get-credits', async () => {
     // Basic query to get grouped credits for the UI
-    const db = (await import('./db/database')).default;
     const creators = db.prepare('SELECT * FROM creators').all();
 
     return creators.map((creator: any) => {

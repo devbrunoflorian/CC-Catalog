@@ -2,13 +2,44 @@
   "name": "cccc",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "dist-electron/main/index.js",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "lint": "eslint src --ext .ts,.tsx",
-    "format": "prettier --write \"src/**/*.{ts,tsx,css,md}\""
+    "format": "prettier --write \"src/**/*.{ts,tsx,css,md}\"",
+    "dist": "npm run build && electron-builder"
+  },
+  "build": {
+    "appId": "com.bruno.simscredit",
+    "productName": "Simscredit",
+    "directories": {
+      "output": "release/${version}"
+    },
+    "files": [
+      "dist-electron",
+      "dist",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "${productName}-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Simscredit"
+    }
   },
   "keywords": [],
   "author": "",
@@ -23,9 +54,9 @@
     "@typescript-eslint/parser": "^8.54.0",
     "@vitejs/plugin-react": "^5.1.3",
     "autoprefixer": "^10.4.24",
-    "electron": "^40.2.1",
+    "electron": "^33.0.0",
     "electron-builder": "^26.7.0",
-    "eslint": "^10.0.0",
+    "eslint": "^9.9.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.5",
     "eslint-plugin-react": "^7.37.5",
@@ -39,8 +70,8 @@
     "vite-plugin-electron-renderer": "^0.14.6"
   },
   "dependencies": {
-    "@types/uuid": "^10.0.0",
-    "better-sqlite3": "^12.6.2",
-    "uuid": "^13.0.0"
+    "adm-zip": "^0.5.16",
+    "better-sqlite3": "^11.8.1",
+    "lucide-react": "^0.474.0"
   }
 }

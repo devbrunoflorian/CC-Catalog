@@ -2,7 +2,7 @@ import db from '../db/database';
 
 export class ReportGenerator {
     static generateMarkdown(): string {
-        const creators = db.prepare('SELECT * FROM creators WHERE is_active = 1').all();
+        const creators = db.prepare('SELECT * FROM creators').all();
         let report = '';
 
         creators.forEach((creator: any) => {
@@ -17,10 +17,5 @@ export class ReportGenerator {
         });
 
         return report.trim();
-    }
-
-    static generatePlatformReport(platform: 'patreon' | 'youtube' | 'twitter'): string {
-        // Future logic for platform-specific formatting
-        return this.generateMarkdown();
     }
 }
