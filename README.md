@@ -4,7 +4,8 @@
 
 # CC Catalog (CCCC)
 
-[English](README.md) | [Português](README.pt-br.md)
+[![English](https://img.shields.io/badge/Language-EN-blue?style=for-the-badge)](README.md)
+[![Português](https://img.shields.io/badge/Língua-PT--BR-green?style=for-the-badge)](README.pt-br.md)
 
 CC Catalog is a specialized tool for The Sims content creators and curators to manage Custom Content (CC) credits efficiently. It automates identifying creators and items from ZIP files and generates formatted markdown reports.
 
