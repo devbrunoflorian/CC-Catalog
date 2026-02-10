@@ -12,6 +12,7 @@ interface CreatorSet {
     name: string;
     patreonUrl?: string;
     websiteUrl?: string;
+    extraLinks?: string;
     items: Item[];
 }
 
@@ -58,7 +59,7 @@ const CreatorsView: React.FC = () => {
     const [creatorForm, setCreatorForm] = useState({ patreon_url: '', website_url: '' });
 
     // Forms
-    const [editSetForm, setEditSetForm] = useState({ name: '', patreon_url: '', website_url: '' });
+    const [editSetForm, setEditSetForm] = useState<{ name: string; links: { type: string; url: string }[] }>({ name: '', links: [] });
     const [newSetName, setNewSetName] = useState('');
     const [showNewSetInput, setShowNewSetInput] = useState(false);
 
@@ -123,12 +124,34 @@ const CreatorsView: React.FC = () => {
     };
 
     const handleUpdateSet = async (setId: string) => {
+        // Process links
+        const validLinks = editSetForm.links.filter(l => l.url.trim());
+
+        let patreonUrl = null;
+        let websiteUrl = null;
+
+        // Find first patreon
+        const pIdx = validLinks.findIndex(l => l.type === 'patreon');
+        if (pIdx >= 0) {
+            patreonUrl = validLinks[pIdx].url;
+            validLinks.splice(pIdx, 1);
+        }
+
+        // Find first website
+        const wIdx = validLinks.findIndex(l => l.type === 'website');
+        if (wIdx >= 0) {
+            websiteUrl = validLinks[wIdx].url;
+            validLinks.splice(wIdx, 1);
+        }
+
         await (window as any).electron.invoke('update-set-link', {
             id: setId,
             name: editSetForm.name,
-            patreon_url: editSetForm.patreon_url,
-            website_url: editSetForm.website_url
+            patreon_url: patreonUrl,
+            website_url: websiteUrl,
+            extra_links: JSON.stringify(validLinks) // Remaining links
         });
+
         setEditingSetId(null);
         loadCreatorDetails(selectedCreatorId!);
     };
@@ -144,9 +167,20 @@ const CreatorsView: React.FC = () => {
     };
 
     const handleDeleteSet = async (setId: string) => {
-        if (!confirm('Are you sure you want to delete this empty set?')) return;
+        const set = creatorDetails?.sets.find(s => s.id === setId);
+        const itemCount = set?.items.length || 0;
+        let deleteItems = false;
+
+        const message = itemCount > 0
+            ? `This set contains ${itemCount} items. Deleting it will REMOVE these items from the catalog. Are you sure?`
+            : 'Are you sure you want to delete this empty set?';
+
+        if (!confirm(message)) return;
+
+        if (itemCount > 0) deleteItems = true;
+
         try {
-            await (window as any).electron.invoke('delete-set', setId);
+            await (window as any).electron.invoke('delete-set', { id: setId, deleteItems });
             loadCreatorDetails(selectedCreatorId!);
         } catch (e: any) {
             alert(e.message);
@@ -165,10 +199,20 @@ const CreatorsView: React.FC = () => {
 
     const startEditingSet = (set: CreatorSet) => {
         setEditingSetId(set.id);
+        const links: { type: string; url: string }[] = [];
+        if (set.patreonUrl) links.push({ type: 'patreon', url: set.patreonUrl });
+        if (set.websiteUrl) links.push({ type: 'website', url: set.websiteUrl });
+        if (set.extraLinks) {
+            try {
+                const extra = JSON.parse(set.extraLinks);
+                if (Array.isArray(extra)) links.push(...extra);
+            } catch { }
+        }
+        if (links.length === 0) links.push({ type: 'patreon', url: '' });
+
         setEditSetForm({
             name: set.name,
-            patreon_url: set.patreonUrl || '',
-            website_url: set.websiteUrl || ''
+            links
         });
     };
 
@@ -292,6 +336,63 @@ const CreatorsView: React.FC = () => {
             setDropPosition(null);
         }
         draggingType.current = null;
+    };
+
+    // Auto-scroll logic
+    const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+    const scrollInterval = React.useRef<NodeJS.Timeout | null>(null);
+
+    const handleContainerDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        const container = scrollContainerRef.current;
+        if (!container) return;
+
+        const { top, bottom, height } = container.getBoundingClientRect();
+        const y = e.clientY;
+        const scrollZone = 80; // Reduced form 100
+
+        if (scrollInterval.current) {
+            // Check if we exited the zone, if so stop
+            if (y >= top + scrollZone && y <= bottom - scrollZone) {
+                clearInterval(scrollInterval.current);
+                scrollInterval.current = null;
+            }
+            return;
+        }
+
+        // Scroll Up
+        if (y < top + scrollZone) {
+            const speed = y < top + 40 ? 10 : 4; // Faster if closer to edge
+            scrollInterval.current = setInterval(() => {
+                if (container) container.scrollTop -= speed;
+            }, 16);
+        }
+        // Scroll Down
+        else if (y > bottom - scrollZone) {
+            const speed = y > bottom - 40 ? 10 : 4; // Faster if closer to edge
+            scrollInterval.current = setInterval(() => {
+                if (container) container.scrollTop += speed;
+            }, 16);
+        }
+    };
+
+    const handleContainerDragLeave = () => {
+        if (scrollInterval.current) {
+            clearInterval(scrollInterval.current);
+            scrollInterval.current = null;
+        }
+    };
+
+    // Clean up interval on unmount or drop
+    useEffect(() => {
+        return () => {
+            if (scrollInterval.current) clearInterval(scrollInterval.current);
+        };
+    }, []);
+
+    const handleDropWrapper = (e: React.DragEvent, targetSetId: string) => {
+        handleContainerDragLeave(); // Stop scrolling
+        handleDrop(e, targetSetId);
     };
 
     // Derived state
@@ -430,11 +531,21 @@ const CreatorsView: React.FC = () => {
                         </div>
 
                         {/* Sets List */}
-                        <div className="flex-grow overflow-y-auto custom-scrollbar p-8 space-y-4">
+                        <div
+                            ref={scrollContainerRef}
+                            className="flex-grow overflow-y-auto custom-scrollbar p-8 space-y-4"
+                            onDragOver={handleContainerDragOver}
+                            onDragLeave={(e) => {
+                                // Only stop if leaving the container, not entering a child
+                                if (!scrollContainerRef.current?.contains(e.relatedTarget as Node)) {
+                                    handleContainerDragLeave();
+                                }
+                            }}
+                        >
                             {creatorDetails.sets.map((set) => (
                                 <div
                                     key={set.id}
-                                    draggable
+                                    draggable={editingSetId !== set.id}
                                     onDragStart={(e) => handleSetDragStart(e, set.id)}
                                     className={`
                                         bg-white/[0.02] border rounded-xl overflow-hidden transition-all duration-300
@@ -444,19 +555,29 @@ const CreatorsView: React.FC = () => {
                                             : 'border-white/5 hover:bg-white/[0.04] hover:border-brand-primary/30'}
                                         ${dropTargetSetId === set.id && dropPosition === 'before' ? 'border-t-2 border-t-brand-primary pt-1' : ''}
                                         ${dropTargetSetId === set.id && dropPosition === 'after' ? 'border-b-2 border-b-brand-primary pb-1' : ''}
+                                        ${editingSetId === set.id ? 'cursor-default opacity-100' : ''}
                                     `}
-                                    onDragOver={(e) => handleSetDragOver(e, set.id)}
+                                    onDragOver={(e) => {
+                                        if (editingSetId === set.id) return; // Disable drop on editing set
+                                        handleSetDragOver(e, set.id)
+                                    }}
                                     onDragLeave={handleSetDragLeave}
-                                    onDrop={(e) => handleDrop(e, set.id)}
+                                    onDrop={(e) => {
+                                        if (editingSetId === set.id) return;
+                                        handleDropWrapper(e, set.id);
+                                    }}
                                 >
                                     {/* Set Header */}
                                     <div className="p-4 flex items-center justify-between group">
                                         <div className="flex items-center gap-4 flex-grow cursor-pointer" onClick={(e) => {
+                                            // Don't toggle expansion if editing? Usually okay.
                                             toggleSetExpansion(set.id);
                                         }}>
-                                            <div className="cursor-grab active:cursor-grabbing p-1.5 text-slate-600 hover:text-slate-400" onMouseDown={e => e.stopPropagation()}>
-                                                <GripVertical size={16} />
-                                            </div>
+                                            {editingSetId !== set.id && (
+                                                <div className="cursor-grab active:cursor-grabbing p-1.5 text-slate-600 hover:text-slate-400" onMouseDown={e => e.stopPropagation()}>
+                                                    <GripVertical size={16} />
+                                                </div>
+                                            )}
                                             <div className={`p-1.5 rounded-lg transition-colors ${expandedSets.has(set.id) ? 'bg-white/10 text-white' : 'text-slate-500 group-hover:bg-white/5 group-hover:text-slate-300'}`}>
                                                 {expandedSets.has(set.id) ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                                             </div>
@@ -482,7 +603,20 @@ const CreatorsView: React.FC = () => {
                                                     </div>
                                                     <div className="text-xs text-slate-500 flex gap-4 mt-1">
                                                         <span>{set.items.length} items</span>
-                                                        {(set.patreonUrl || set.websiteUrl) && <span className="flex items-center gap-1 text-brand-secondary/80 bg-brand-primary/10 px-2 py-0.5 rounded-full border border-brand-primary/10"><Link2 size={10} /> Linked</span>}
+                                                        {(set.patreonUrl || set.websiteUrl || set.extraLinks) && (
+                                                            <div className="flex gap-1">
+                                                                {set.patreonUrl && <a href={set.patreonUrl} target="_blank" onClick={e => e.stopPropagation()} className="p-1 hover:bg-white/10 rounded-md text-slate-400 hover:text-[#FF424D] transition-colors" title="Patreon"><ExternalLink size={12} /></a>}
+                                                                {set.websiteUrl && <a href={set.websiteUrl} target="_blank" onClick={e => e.stopPropagation()} className="p-1 hover:bg-white/10 rounded-md text-slate-400 hover:text-blue-400 transition-colors" title="Website"><Globe size={12} /></a>}
+                                                                {(() => {
+                                                                    try {
+                                                                        const extra = set.extraLinks ? JSON.parse(set.extraLinks) : [];
+                                                                        return extra.map((l: any, i: number) => (
+                                                                            <a key={i} href={l.url} target="_blank" onClick={e => e.stopPropagation()} className="p-1 hover:bg-white/10 rounded-md text-slate-400 hover:text-green-400 transition-colors" title={l.type}><Link2 size={12} /></a>
+                                                                        ));
+                                                                    } catch { return null; }
+                                                                })()}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                             )}
@@ -499,11 +633,9 @@ const CreatorsView: React.FC = () => {
                                                     <button onClick={() => startEditingSet(set)} className="p-2 hover:bg-white/10 rounded-lg text-slate-500 hover:text-brand-primary transition-colors">
                                                         <Edit2 size={16} />
                                                     </button>
-                                                    {set.items.length === 0 && (
-                                                        <button onClick={() => handleDeleteSet(set.id)} className="p-2 hover:bg-white/10 rounded-lg text-slate-500 hover:text-red-400 transition-colors">
-                                                            <Trash2 size={16} />
-                                                        </button>
-                                                    )}
+                                                    <button onClick={() => handleDeleteSet(set.id)} className="p-2 hover:bg-white/10 rounded-lg text-slate-500 hover:text-red-400 transition-colors">
+                                                        <Trash2 size={16} />
+                                                    </button>
                                                 </div>
                                             )}
                                         </div>
@@ -512,24 +644,54 @@ const CreatorsView: React.FC = () => {
                                     {/* Set Edit Panel (Links) */}
                                     {editingSetId === set.id && (
                                         <div className="px-4 pb-4 pl-14 space-y-3 bg-black/20 pt-2 animate-in slide-in-from-top-1">
-                                            <div className="flex items-center gap-3 p-2 rounded-lg bg-black/20 border border-white/5 focus-within:border-brand-primary/30 transition-colors">
-                                                <Link2 size={14} className="text-slate-500" />
-                                                <input
-                                                    className="bg-transparent border-none outline-none text-xs w-full text-slate-300 placeholder-slate-600"
-                                                    placeholder="Patreon Post URL"
-                                                    value={editSetForm.patreon_url}
-                                                    onChange={e => setEditSetForm({ ...editSetForm, patreon_url: e.target.value })}
-                                                />
-                                            </div>
-                                            <div className="flex items-center gap-3 p-2 rounded-lg bg-black/20 border border-white/5 focus-within:border-brand-primary/30 transition-colors">
-                                                <Globe size={14} className="text-slate-500" />
-                                                <input
-                                                    className="bg-transparent border-none outline-none text-xs w-full text-slate-300 placeholder-slate-600"
-                                                    placeholder="Website URL"
-                                                    value={editSetForm.website_url}
-                                                    onChange={e => setEditSetForm({ ...editSetForm, website_url: e.target.value })}
-                                                />
-                                            </div>
+                                            {editSetForm.links.map((link, idx) => (
+                                                <div key={idx} className="flex items-center gap-2">
+                                                    <div className="relative shrink-0 w-24">
+                                                        <select
+                                                            className="w-full bg-black/20 border border-white/5 rounded-lg px-2 py-2 text-xs text-slate-300 outline-none appearance-none"
+                                                            value={link.type}
+                                                            onChange={e => {
+                                                                const newLinks = [...editSetForm.links];
+                                                                newLinks[idx].type = e.target.value;
+                                                                setEditSetForm({ ...editSetForm, links: newLinks });
+                                                            }}
+                                                        >
+                                                            <option value="patreon">Patreon</option>
+                                                            <option value="website">Website</option>
+                                                            <option value="tumblr">Tumblr</option>
+                                                            <option value="curseforge">CurseForge</option>
+                                                            <option value="other">Other</option>
+                                                        </select>
+                                                    </div>
+                                                    <div className="flex-grow flex items-center gap-2 p-2 rounded-lg bg-black/20 border border-white/5 focus-within:border-brand-primary/30 transition-colors">
+                                                        <input
+                                                            className="bg-transparent border-none outline-none text-xs w-full text-slate-300 placeholder-slate-600"
+                                                            placeholder="URL"
+                                                            value={link.url}
+                                                            onChange={e => {
+                                                                const newLinks = [...editSetForm.links];
+                                                                newLinks[idx].url = e.target.value;
+                                                                setEditSetForm({ ...editSetForm, links: newLinks });
+                                                            }}
+                                                        />
+                                                    </div>
+                                                    <button
+                                                        onClick={() => {
+                                                            const newLinks = editSetForm.links.filter((_, i) => i !== idx);
+                                                            setEditSetForm({ ...editSetForm, links: newLinks });
+                                                        }}
+                                                        className="p-2 hover:bg-red-500/20 text-slate-500 hover:text-red-400 rounded-lg transition-colors"
+                                                    >
+                                                        <X size={14} />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                            <button
+                                                onClick={() => setEditSetForm({ ...editSetForm, links: [...editSetForm.links, { type: 'other', url: '' }] })}
+                                                className="text-xs flex items-center gap-2 text-brand-secondary hover:text-white px-2 py-1 hover:bg-white/5 rounded-lg transition-colors"
+                                            >
+                                                <FolderPlus size={12} /> Add Link
+                                            </button>
                                         </div>
                                     )}
 

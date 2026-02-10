@@ -93,7 +93,7 @@ ipcMain.handle('create-set', async (_, { creatorId, name }) => {
     return { id: newId, name, items: [] };
 });
 
-ipcMain.handle('delete-set', async (_, id) => {
+ipcMain.handle('delete-set', async (_, { id, deleteItems }) => {
     if (!dbInitialized) throw new Error('Database not initialized');
     const db = getDb();
 
@@ -101,8 +101,12 @@ ipcMain.handle('delete-set', async (_, id) => {
     const result = db.select({ count: sql<number>`count(*)` }).from(ccItems).where(eq(ccItems.ccSetId, id)).get();
     const itemsCount = result ? Number(result.count) : 0;
 
-    if (itemsCount > 0) {
-        throw new Error('Cannot delete non-empty set. Move items first.');
+    if (itemsCount > 0 && !deleteItems) {
+        throw new Error('Cannot delete non-empty set. Move items first or confirm deletion.');
+    }
+
+    if (itemsCount > 0 && deleteItems) {
+        db.delete(ccItems).where(eq(ccItems.ccSetId, id)).run();
     }
 
     db.delete(ccSets).where(eq(ccSets.id, id)).run();
@@ -129,7 +133,7 @@ ipcMain.handle('move-items', async (_, { itemIds, targetSetId }) => {
     return { success: true };
 });
 
-ipcMain.handle('update-set-link', async (_, { id, name, patreon_url, website_url }: any) => {
+ipcMain.handle('update-set-link', async (_, { id, name, patreon_url, website_url, extra_links }: any) => {
     if (!dbInitialized) throw new Error('Database not initialized');
     const db = getDb();
 
@@ -140,6 +144,7 @@ ipcMain.handle('update-set-link', async (_, { id, name, patreon_url, website_url
     if (name !== undefined) updateData.name = name;
     if (patreon_url !== undefined) updateData.patreonUrl = patreon_url;
     if (website_url !== undefined) updateData.websiteUrl = website_url;
+    if (extra_links !== undefined) updateData.extraLinks = extra_links;
 
     db.update(ccSets)
         .set(updateData)
@@ -533,6 +538,13 @@ if (!gotTheLock) {
             try {
                 const db = getDb();
                 db.run(sql`ALTER TABLE cc_sets ADD COLUMN sort_order INTEGER DEFAULT 0`);
+            } catch (e) {
+                // Column likely exists
+            }
+
+            try {
+                const db = getDb();
+                db.run(sql`ALTER TABLE cc_sets ADD COLUMN extra_links TEXT`);
             } catch (e) {
                 // Column likely exists
             }

@@ -36,6 +36,7 @@ export const ccSets = sqliteTable('cc_sets', {
     name: text('name').notNull(),
     patreonUrl: text('patreon_url'),
     websiteUrl: text('website_url'),
+    extraLinks: text('extra_links'), // JSON array of additional links
     releaseDate: text('release_date'),
     sortOrder: integer('sort_order').default(0),
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
