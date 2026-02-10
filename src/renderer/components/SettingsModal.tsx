@@ -40,8 +40,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
             className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-6 animate-in fade-in duration-200"
             onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
         >
-            <div className="bg-bg-card border border-border-subtle rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
-                <div className="flex justify-between items-center p-6 border-b border-white/5">
+            <div className="bg-bg-card border border-border-subtle rounded-[2rem] w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+                <div className="flex justify-between items-center px-8 py-6 border-b border-white/5 bg-white/5 shrink-0">
                     <h2 className="text-xl font-bold bg-gradient-to-r from-brand-primary to-brand-secondary bg-clip-text text-transparent">
                         Appearance
                     </h2>
@@ -50,7 +50,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                     </button>
                 </div>
 
-                <div className="p-6 space-y-8">
+                <div className="p-8 space-y-8 overflow-y-auto custom-scrollbar flex-grow">
                     {/* Theme Color */}
                     <div className="space-y-4">
                         <label className="text-sm font-medium text-slate-300 uppercase tracking-wider block">Accent Tint</label>
