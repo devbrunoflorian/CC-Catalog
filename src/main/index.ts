@@ -10,6 +10,7 @@ process.on('unhandledRejection', (reason) => {
 console.log('[MAIN] starting app');
 
 import { app, BrowserWindow, ipcMain, dialog } from 'electron';
+import { autoUpdater } from 'electron-updater';
 import { join, dirname, basename, extname } from 'path';
 import { fileURLToPath } from 'url';
 import { initDatabase, getDb, saveDatabase } from './db/database.js';
@@ -26,6 +27,46 @@ const __dirname = dirname(__filename);
 let dbInitialized = false;
 
 
+
+// Configure Auto Updater
+autoUpdater.autoDownload = true;
+autoUpdater.autoInstallOnAppQuit = true;
+
+autoUpdater.on('checking-for-update', () => {
+    win?.webContents.send('update-status', 'Checking for updates...');
+});
+
+autoUpdater.on('update-available', (info) => {
+    win?.webContents.send('update-status', `Update v${info.version} available!`);
+});
+
+autoUpdater.on('update-not-available', () => {
+    win?.webContents.send('update-status', 'No updates available.');
+});
+
+autoUpdater.on('error', (err) => {
+    win?.webContents.send('update-status', `Error: ${err.message}`);
+});
+
+autoUpdater.on('download-progress', (progress) => {
+    win?.webContents.send('update-progress', progress.percent);
+});
+
+autoUpdater.on('update-downloaded', (info) => {
+    win?.webContents.send('update-status', `Update v${info.version} downloaded! Will install on restart.`);
+});
+
+ipcMain.handle('check-for-updates', async () => {
+    if (process.env.VITE_DEV_SERVER_URL) {
+        return { success: false, message: 'Auto-update is disabled in development mode.' };
+    }
+    try {
+        const result = await autoUpdater.checkForUpdatesAndNotify();
+        return { success: true, result };
+    } catch (error: any) {
+        return { success: false, message: error.message };
+    }
+});
 
 ipcMain.handle('get-history', async () => {
     if (!dbInitialized) throw new Error('Database not initialized');

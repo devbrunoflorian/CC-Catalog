@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Check } from 'lucide-react';
+import { X, Check, ExternalLink } from 'lucide-react';
 import { ThemeColor, useTheme } from '../context/ThemeContext';
 
 interface SettingsModalProps {
@@ -9,6 +9,22 @@ interface SettingsModalProps {
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     const { themeColor, setThemeColor, opacity, setOpacity } = useTheme();
+    const [updateStatus, setUpdateStatus] = React.useState<string | null>(null);
+    const [updateProgress, setUpdateProgress] = React.useState<number>(0);
+
+    React.useEffect(() => {
+        if (!isOpen) return;
+
+        const handleStatus = (status: string) => setUpdateStatus(status);
+        const handleProgress = (progress: number) => setUpdateProgress(progress);
+
+        (window as any).electron.receive('update-status', handleStatus);
+        (window as any).electron.receive('update-progress', handleProgress);
+
+        return () => {
+            // Cleanup would need a removeListener in preload, but assuming app stays open
+        };
+    }, [isOpen]);
 
     if (!isOpen) return null;
 
@@ -109,6 +125,75 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                             Export your library to edit organization in Excel, then import it back.
                             Format: Creator, P/W, Set, P/W, Items.
                         </p>
+                    </div>
+
+                    {/* About Section */}
+                    <div className="space-y-4 border-t border-white/5 pt-6 pb-2">
+                        <label className="text-sm font-medium text-slate-300 uppercase tracking-wider block text-center">About CC Catalog</label>
+                        <div className="glass-effect rounded-2xl p-4 border border-white/5 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div className="flex flex-col">
+                                    <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Author</span>
+                                    <span className="text-sm font-bold text-slate-200">Bruno Florian</span>
+                                </div>
+                                <a
+                                    href="https://github.com/devbrunoflorian"
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="p-2 bg-white/5 hover:bg-brand-primary/20 text-slate-400 hover:text-brand-secondary rounded-lg transition-all border border-white/5"
+                                >
+                                    <ExternalLink size={16} />
+                                </a>
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                                <div className="flex flex-col">
+                                    <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Co-authored by</span>
+                                    <span className="text-sm font-bold text-slate-200">Violetsimmer7</span>
+                                </div>
+                                <a
+                                    href="https://www.patreon.com/cw/Violetsimmer7"
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="p-2 bg-white/5 hover:bg-brand-primary/20 text-slate-400 hover:text-brand-secondary rounded-lg transition-all border border-white/5"
+                                >
+                                    <ExternalLink size={16} />
+                                </a>
+                            </div>
+
+                            <div className="pt-2 text-center">
+                                <span className="text-[10px] text-slate-600 font-mono uppercase tracking-tighter">Version 1.0.0 • Made with ❤️ for Simmers</span>
+                            </div>
+                        </div>
+
+                        {/* Update Management */}
+                        <div className="space-y-3">
+                            <button
+                                onClick={async () => {
+                                    setUpdateStatus('Checking...');
+                                    const res = await (window as any).electron.invoke('check-for-updates');
+                                    if (!res.success) setUpdateStatus(res.message);
+                                }}
+                                className="w-full bg-brand-primary/10 hover:bg-brand-primary/20 border border-brand-primary/20 rounded-xl py-3 px-4 text-xs font-bold text-brand-secondary transition-all flex items-center justify-center gap-2 uppercase tracking-widest"
+                            >
+                                <Check size={14} />
+                                Check for Updates
+                            </button>
+
+                            {updateStatus && (
+                                <div className="space-y-2">
+                                    <p className="text-[10px] text-center font-mono text-slate-400 uppercase">{updateStatus}</p>
+                                    {updateProgress > 0 && updateProgress < 100 && (
+                                        <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden border border-white/5">
+                                            <div
+                                                className="h-full bg-brand-primary transition-all duration-300"
+                                                style={{ width: `${updateProgress}%` }}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
