@@ -2,27 +2,32 @@
   <img src="src/renderer/assets/logo.png" width="128" alt="Simscredit Logo">
 </p>
 
-# CC Catalog
+# CC Catalog (CCCC)
 
-CC Catalog is a specialized tool for The Sims content creators and curators to manage Custom Content (CC) credits efficiently. It automates the process of identifying creators and items from ZIP files and generates formatted markdown reports.
+CC Catalog is a specialized tool for The Sims content creators and curators to manage Custom Content (CC) credits efficiently. It automates identifying creators and items from ZIP files and generates formatted markdown reports.
 
-## Features
+## 🚀 Key Features
 
-- 📂 **Smart ZIP Scanning**: Automatically identifies creators, CC sets, and items based on the folder structure within ZIP files.
-- 👤 **Creator Management**: Maintain a database of creators with their Patreon, website, and social media links.
-- 📝 **Markdown Reports**: Generate ready-to-use markdown credit lists for your blog, Patreon, or social media.
-- 🎨 **Modern Interface**: A sleek, dark-themed dashboard built with React and Tailwind CSS.
-- 🧠 **Smart Matching**: Uses Levenshtein distance to detect similar creator names and avoid duplicates.
-- 🗃️ **Persistent Database**: All data is stored locally using SQLite for fast access and portability.
+- 📂 **Hierarchical Organization**: Support for nested sets (subfolders). Organize your library by year, theme, or collection with parent/child relationships.
+- 📁 **Enhanced ZIP Scanning**: Intelligent import logic that identifies creators and sets. 
+    - **Duplicate Prevention**: Checks across the entire creator library to avoid importing the same item twice.
+    - **Smart Sorting**: Files in root or unknown structures are automatically moved to an "Unsorted" category.
+- 📝 **Social-Ready Reports**: Generate credit lists formatted specifically for **Patreon** and **X (Twitter)**.
+    - **Auto-Hyperlinks**: Set names are automatically converted to clickable links if Patreon/Website URLs are available.
+    - **Rich Aesthetics**: Uses emojis (📁, 📦) and clean Markdown indentation for a professional look.
+- 👤 **Advanced Library Manager**: Edit metadata (Patreon, Website, Social links) for creators and individual sets directly.
+- 🎨 **Premium Glass UI**: A stunning "glassy" interface with Windows native **Acrylic/Mica** support and customizable accent colors.
+- 🧠 **Fuzzy Creator Matching**: Uses Levenshtein distance to detect similar creator names (e.g., "Felixand" vs "Felixandre") to prevent redundant entries.
+- 🗃️ **Robust Persistence**: Local storage using SQLite with **Drizzle ORM** for high-performance data management.
 
-## Technology Stack
+## 💻 Technology Stack
 
 - **Framework**: Electron + Vite
-- **Frontend**: React, Tailwind CSS, Lucide React
-- **Database**: SQLite (via `better-sqlite3`)
-- **Utilities**: `adm-zip` for archive processing
+- **Frontend**: React, Vanilla CSS (Glassmorphism), Lucide React
+- **Database**: SQLite (via `better-sqlite3`) + **Drizzle ORM**
+- **Utilities**: `adm-zip` for archive processing, `fuse.js` for selection
 
-## Getting Started
+## 🏁 Getting Started
 
 ### Prerequisites
 
@@ -54,16 +59,18 @@ To create a Windows installer:
 npm run dist
 ```
 
-## How it Works
+## 🛠️ How it Works
 
-The tool expects ZIP files to have a specific structure for optimal identification:
+The tool analyzes ZIP files looking for creator signatures and folder patterns:
 - `Creator/SetName/ItemName.package`
 - `Mods/Creator/SetName/ItemName.package`
 
-When a ZIP is scanned, CC Catalog analyzes the creators found. If a name is similar to one already in your database (e.g., "Felixand" vs "Felixandre"), the app will prompt you to confirm if it should use the existing record or create a new one.
+During scanning, if a name is similar to one already in your database, CC Catalog will prompt you to confirm if it's a new creator or a variations of an existing one.
 
-## Completed Features
+## ✅ Completed & Recent Updates
 
-- [x] **Fuzzy Matching**: Automated Levenshtein distance check to prevent duplicate creators.
-- [x] **Confirmation UI**: Interactive prompts to confirm new creator registrations during the scanning process.
-
+- [x] **Nested Sets**: Drag and drop support to create folder hierarchies.
+- [x] **Report V2**: Visual-first markdown generation with emojis and links.
+- [x] **Metadata Sync**: Persistent saving of Patreon/Website URLs with auto-sinc.
+- [x] **Global Duplicate Filter**: Prevents same-file imports across all sets of a creator.
+- [x] **Glass Theme**: Native Windows transparency effects and custom tinting.
