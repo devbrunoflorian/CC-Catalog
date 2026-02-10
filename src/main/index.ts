@@ -16,7 +16,7 @@ import { initDatabase, getDb, saveDatabase } from './db/database.js';
 import { ZipScanner } from './lib/ZipScanner.js';
 import { ReportGenerator } from './lib/ReportGenerator.js';
 import { creators, ccSets, ccItems, scanHistory } from './db/schema.js';
-import { eq, sql, desc } from 'drizzle-orm';
+import { eq, sql, desc, asc } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 
 // ES module __dirname polyfill (required for "type": "module" in package.json)
@@ -62,7 +62,11 @@ ipcMain.handle('get-creator-details', async (_, id) => {
     const creator = db.select().from(creators).where(eq(creators.id, id)).get();
     if (!creator) return null;
 
-    const sets = db.select().from(ccSets).where(eq(ccSets.creatorId, id)).all();
+    const sets = db.select()
+        .from(ccSets)
+        .where(eq(ccSets.creatorId, id))
+        .orderBy(asc(ccSets.sortOrder), desc(ccSets.createdAt)) // Sort manually ordered first, then newest
+        .all();
 
     // Get all items for these sets
     const setsWithItems = sets.map(set => {
@@ -526,6 +530,13 @@ if (!gotTheLock) {
                 // Column likely exists
             }
 
+            try {
+                const db = getDb();
+                db.run(sql`ALTER TABLE cc_sets ADD COLUMN sort_order INTEGER DEFAULT 0`);
+            } catch (e) {
+                // Column likely exists
+            }
+
             console.log('[MAIN] initDatabase OK');
             dbInitialized = true;
         } catch (err) {
@@ -544,6 +555,45 @@ ipcMain.handle('delete-history-item', async (_, id) => {
     db.delete(scanHistory).where(eq(scanHistory.id, id)).run();
     saveDatabase();
     return true;
+});
+
+ipcMain.handle('merge-sets', async (_, { sourceSetId, targetSetId }) => {
+    if (!dbInitialized) throw new Error('Database not initialized');
+    const db = getDb();
+
+    // Check if target exists
+    const target = db.select().from(ccSets).where(eq(ccSets.id, targetSetId)).get();
+    if (!target) throw new Error('Target set not found');
+
+    // Move items to target set
+    db.update(ccItems)
+        .set({ ccSetId: targetSetId, updatedAt: sql`CURRENT_TIMESTAMP` })
+        .where(eq(ccItems.ccSetId, sourceSetId))
+        .run();
+
+    // Delete source set
+    db.delete(ccSets)
+        .where(eq(ccSets.id, sourceSetId))
+        .run();
+
+    saveDatabase();
+    return { success: true };
+});
+
+ipcMain.handle('reorder-sets', async (_, { setsOrder }) => {
+    // setsOrder: Array<{ id: string, sortOrder: number }>
+    if (!dbInitialized) throw new Error('Database not initialized');
+    const db = getDb();
+
+    for (const item of setsOrder) {
+        db.update(ccSets)
+            .set({ sortOrder: item.sortOrder })
+            .where(eq(ccSets.id, item.id))
+            .run();
+    }
+
+    saveDatabase();
+    return { success: true };
 });
 
 ipcMain.handle('generate-report', async (_, options) => {

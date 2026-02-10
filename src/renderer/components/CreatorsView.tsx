@@ -172,14 +172,28 @@ const CreatorsView: React.FC = () => {
         });
     };
 
-    // Drag and Drop Logic
+    // Drag and Drop Logic for Items
+    const draggingType = React.useRef<'item' | 'set' | null>(null);
+    const [draggingSetId, setDraggingSetId] = useState<string | null>(null);
+    const [dropTargetSetId, setDropTargetSetId] = useState<string | null>(null);
+    const [dropPosition, setDropPosition] = useState<'before' | 'after' | 'merge' | null>(null);
+
     const handleDragStart = (e: React.DragEvent, itemId: string) => {
+        draggingType.current = 'item';
         e.dataTransfer.setData('text/plain', itemId);
         e.dataTransfer.effectAllowed = 'move';
-        // If the item is not in selection, select it solely
+
         if (!selectedItems.has(itemId)) {
             setSelectedItems(new Set([itemId]));
         }
+        e.stopPropagation();
+    };
+
+    const handleSetDragStart = (e: React.DragEvent, setId: string) => {
+        draggingType.current = 'set';
+        setDraggingSetId(setId);
+        e.dataTransfer.setData('application/json', JSON.stringify({ type: 'set', id: setId }));
+        e.dataTransfer.effectAllowed = 'move';
     };
 
     const handleDragOver = (e: React.DragEvent) => {
@@ -187,17 +201,97 @@ const CreatorsView: React.FC = () => {
         e.dataTransfer.dropEffect = 'move';
     };
 
+    const handleSetDragOver = (e: React.DragEvent, targetSetId: string) => {
+        e.preventDefault();
+        e.stopPropagation(); // Prevent bubbling to parent container
+
+        if (draggingType.current !== 'set' || draggingSetId === targetSetId) return;
+
+        const rect = e.currentTarget.getBoundingClientRect();
+        const y = e.clientY - rect.top;
+        const height = rect.height;
+
+        // Visual zones logic
+        // Center 60% -> Merge (20% to 80%)
+        // Top 20% -> Reorder Before
+        // Bottom 20% -> Reorder After
+
+        if (y < height * 0.25) {
+            setDropPosition('before');
+        } else if (y > height * 0.75) {
+            setDropPosition('after');
+        } else {
+            setDropPosition('merge');
+        }
+        setDropTargetSetId(targetSetId);
+    };
+
+    const handleSetDragLeave = () => {
+        setDropTargetSetId(null);
+        setDropPosition(null);
+    };
+
     const handleDrop = (e: React.DragEvent, targetSetId: string) => {
         e.preventDefault();
-        const draggedItemId = e.dataTransfer.getData('text/plain');
+        e.stopPropagation();
 
-        // If we have a selection including the dragged item, move all selected
-        // Otherwise just move the dragged one
-        const itemsToMove = selectedItems.has(draggedItemId)
-            ? Array.from(selectedItems)
-            : [draggedItemId];
+        if (draggingType.current === 'item') {
+            const draggedItemId = e.dataTransfer.getData('text/plain');
+            const itemsToMove = selectedItems.has(draggedItemId)
+                ? Array.from(selectedItems)
+                : [draggedItemId];
 
-        handleMoveItems(targetSetId, itemsToMove);
+            handleMoveItems(targetSetId, itemsToMove);
+        } else if (draggingType.current === 'set') {
+            const sourceSetId = draggingSetId;
+            if (!sourceSetId || sourceSetId === targetSetId) return;
+
+            if (dropPosition === 'merge') {
+                if (confirm('Are you sure you want to merge these sets? The dragged set will be deleted and its items moved to the target set.')) {
+                    (window as any).electron.invoke('merge-sets', { sourceSetId, targetSetId }).then(() => {
+                        loadCreatorDetails(selectedCreatorId!);
+                    });
+                }
+            } else if (dropPosition === 'before' || dropPosition === 'after') {
+                // Reorder Logic
+                if (!creatorDetails) return;
+
+                const sets = [...creatorDetails.sets];
+                const sourceIndex = sets.findIndex(s => s.id === sourceSetId);
+                const targetIndex = sets.findIndex(s => s.id === targetSetId);
+
+                if (sourceIndex === -1 || targetIndex === -1) return;
+
+                // Remove source
+                const [movedSet] = sets.splice(sourceIndex, 1);
+
+                // Calculate insert index
+                // Note: if we removed an item before the target, the target index shifted down by 1
+                let insertIndex = targetIndex;
+                if (sourceIndex < targetIndex) insertIndex--; // Adjust because source was removed from before
+
+                if (dropPosition === 'after') insertIndex++;
+
+                sets.splice(insertIndex, 0, movedSet);
+
+                // Create update payload with new sort orders
+                const updates = sets.map((s, index) => ({
+                    id: s.id,
+                    sortOrder: index
+                }));
+
+                // Update locally immediately for responsiveness (optimistic UI could be improved but this is fast enough usually)
+                // Actually let's just wait for reload to avoid complex state sync
+                (window as any).electron.invoke('reorder-sets', { setsOrder: updates }).then(() => {
+                    loadCreatorDetails(selectedCreatorId!);
+                });
+            }
+
+            setDraggingSetId(null);
+            setDropTargetSetId(null);
+            setDropPosition(null);
+        }
+        draggingType.current = null;
     };
 
     // Derived state
@@ -340,8 +434,19 @@ const CreatorsView: React.FC = () => {
                             {creatorDetails.sets.map((set) => (
                                 <div
                                     key={set.id}
-                                    className="bg-white/[0.02] border border-white/5 rounded-xl overflow-hidden transition-all duration-300 hover:bg-white/[0.04] hover:border-brand-primary/30 hover:shadow-[0_0_25px_-5px_hsl(var(--brand-primary)/0.15)] hover:-translate-y-1"
-                                    onDragOver={handleDragOver}
+                                    draggable
+                                    onDragStart={(e) => handleSetDragStart(e, set.id)}
+                                    className={`
+                                        bg-white/[0.02] border rounded-xl overflow-hidden transition-all duration-300
+                                        ${draggingSetId === set.id ? 'opacity-50 scale-95' : ''}
+                                        ${dropTargetSetId === set.id && dropPosition === 'merge'
+                                            ? 'border-brand-primary bg-brand-primary/20 shadow-[0_0_30px_hsl(var(--brand-primary)/0.2)] scale-[1.02]'
+                                            : 'border-white/5 hover:bg-white/[0.04] hover:border-brand-primary/30'}
+                                        ${dropTargetSetId === set.id && dropPosition === 'before' ? 'border-t-2 border-t-brand-primary pt-1' : ''}
+                                        ${dropTargetSetId === set.id && dropPosition === 'after' ? 'border-b-2 border-b-brand-primary pb-1' : ''}
+                                    `}
+                                    onDragOver={(e) => handleSetDragOver(e, set.id)}
+                                    onDragLeave={handleSetDragLeave}
                                     onDrop={(e) => handleDrop(e, set.id)}
                                 >
                                     {/* Set Header */}
@@ -349,6 +454,9 @@ const CreatorsView: React.FC = () => {
                                         <div className="flex items-center gap-4 flex-grow cursor-pointer" onClick={(e) => {
                                             toggleSetExpansion(set.id);
                                         }}>
+                                            <div className="cursor-grab active:cursor-grabbing p-1.5 text-slate-600 hover:text-slate-400" onMouseDown={e => e.stopPropagation()}>
+                                                <GripVertical size={16} />
+                                            </div>
                                             <div className={`p-1.5 rounded-lg transition-colors ${expandedSets.has(set.id) ? 'bg-white/10 text-white' : 'text-slate-500 group-hover:bg-white/5 group-hover:text-slate-300'}`}>
                                                 {expandedSets.has(set.id) ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                                             </div>

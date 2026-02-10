@@ -37,6 +37,7 @@ export const ccSets = sqliteTable('cc_sets', {
     patreonUrl: text('patreon_url'),
     websiteUrl: text('website_url'),
     releaseDate: text('release_date'),
+    sortOrder: integer('sort_order').default(0),
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
     updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
 });
