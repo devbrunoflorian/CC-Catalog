@@ -47,6 +47,11 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/devbrunoflorian/CC-Catalog.git"
+  },
+  "homepage": "https://github.com/devbrunoflorian/CC-Catalog#readme",
   "devDependencies": {
     "@types/adm-zip": "^0.5.7",
     "@types/node": "^25.2.2",
