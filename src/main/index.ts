@@ -444,19 +444,24 @@ let win: BrowserWindow | null = null;
 let splashWin: BrowserWindow | null = null;
 
 function createWindow() {
+    const iconPath = process.env.VITE_DEV_SERVER_URL
+        ? join(process.env.DIST!, 'public/favicon.png')
+        : join(process.env.DIST!, 'favicon.png');
+
     win = new BrowserWindow({
         width: 1200,
         height: 800,
-        show: false, // Start hidden
+        show: false,
+        icon: iconPath,
         webPreferences: {
             preload: join(__dirname, 'preload.js'),
             nodeIntegration: false,
             contextIsolation: true,
         },
         title: 'CC Catalog',
-        backgroundColor: '#00000000', // Fully transparent for acrylic to show through
+        backgroundColor: '#00000000',
         backgroundMaterial: 'acrylic',
-        transparent: false, // Standard frame + acrylic usually requires transparent: false on Windows to avoid artifacts/crashes
+        transparent: false,
     });
 
     console.log('[MAIN] VITE_DEV_SERVER_URL:', process.env.VITE_DEV_SERVER_URL);

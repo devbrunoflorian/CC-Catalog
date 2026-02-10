@@ -548,7 +548,7 @@ const CreatorsView: React.FC = () => {
                                     draggable={editingSetId !== set.id}
                                     onDragStart={(e) => handleSetDragStart(e, set.id)}
                                     className={`
-                                        bg-white/[0.02] border rounded-xl overflow-hidden transition-all duration-300
+                                        relative bg-white/[0.02] border rounded-xl overflow-hidden transition-all duration-300
                                         ${draggingSetId === set.id ? 'opacity-50 scale-95' : ''}
                                         ${dropTargetSetId === set.id && dropPosition === 'merge'
                                             ? 'border-brand-primary bg-brand-primary/20 shadow-[0_0_30px_hsl(var(--brand-primary)/0.2)] scale-[1.02]'
@@ -597,14 +597,14 @@ const CreatorsView: React.FC = () => {
                                                     />
                                                 </div>
                                             ) : (
-                                                <div className="flex-grow">
-                                                    <div className="font-semibold text-slate-200 flex items-center gap-3">
+                                                <div className="flex-grow min-w-0 pr-20 select-text">
+                                                    <div className="font-semibold text-slate-200 flex flex-wrap items-center gap-2 break-all leading-snug" title={set.name}>
                                                         {set.name}
                                                     </div>
-                                                    <div className="text-xs text-slate-500 flex gap-4 mt-1">
+                                                    <div className="text-xs text-slate-500 flex gap-4 mt-1.5">
                                                         <span>{set.items.length} items</span>
                                                         {(set.patreonUrl || set.websiteUrl || set.extraLinks) && (
-                                                            <div className="flex gap-1">
+                                                            <div className="flex gap-1 shrink-0">
                                                                 {set.patreonUrl && <a href={set.patreonUrl} target="_blank" onClick={e => e.stopPropagation()} className="p-1 hover:bg-white/10 rounded-md text-slate-400 hover:text-[#FF424D] transition-colors" title="Patreon"><ExternalLink size={12} /></a>}
                                                                 {set.websiteUrl && <a href={set.websiteUrl} target="_blank" onClick={e => e.stopPropagation()} className="p-1 hover:bg-white/10 rounded-md text-slate-400 hover:text-blue-400 transition-colors" title="Website"><Globe size={12} /></a>}
                                                                 {(() => {
@@ -622,14 +622,14 @@ const CreatorsView: React.FC = () => {
                                             )}
                                         </div>
 
-                                        <div className="flex gap-2">
+                                        <div className="absolute right-4 top-1/2 -translate-y-1/2 flex gap-2">
                                             {editingSetId === set.id ? (
-                                                <div className="flex gap-2 animate-in fade-in">
+                                                <div className="flex gap-2 animate-in fade-in bg-black/60 backdrop-blur-sm p-1 rounded-lg border border-white/10">
                                                     <button onClick={() => handleUpdateSet(set.id)} className="p-2 bg-green-500/10 text-green-400 rounded-lg hover:bg-green-500/20 border border-green-500/20 transition-colors"><Check size={16} /></button>
                                                     <button onClick={() => setEditingSetId(null)} className="p-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 border border-red-500/20 transition-colors"><X size={16} /></button>
                                                 </div>
                                             ) : (
-                                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
+                                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0 bg-black/60 backdrop-blur-sm p-1 rounded-lg border border-white/10 shadow-xl">
                                                     <button onClick={() => startEditingSet(set)} className="p-2 hover:bg-white/10 rounded-lg text-slate-500 hover:text-brand-primary transition-colors">
                                                         <Edit2 size={16} />
                                                     </button>
