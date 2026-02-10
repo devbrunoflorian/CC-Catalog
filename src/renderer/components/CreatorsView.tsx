@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, ExternalLink, Link2, Globe, FolderPlus, Trash2, Edit2, File as FileIcon, ChevronRight, ChevronDown, Check, X, GripVertical, Save, ArrowUp } from 'lucide-react';
+import { Search, ExternalLink, Link2, Globe, FolderPlus, Trash2, Edit2, File as FileIcon, ChevronRight, ChevronDown, Check, X, GripVertical, Save, ArrowUp, SortAsc, SortDesc, ListFilter, Move } from 'lucide-react';
 
 interface Item {
     id: string;
@@ -65,6 +65,15 @@ const CreatorsView: React.FC = () => {
     const [showNewSetInput, setShowNewSetInput] = useState(false);
     const [activeParentSetId, setActiveParentSetId] = useState<string | null>(null);
 
+    // Sorting State
+    const [creatorSort, setCreatorSort] = useState<'az' | 'za' | 'items'>('az');
+    const [setSort, setSetSort] = useState<'az' | 'za' | 'items'>('az');
+    const [itemSort, setItemSort] = useState<'az' | 'za'>('az');
+
+    // Move to Set Modal State
+    const [showMoveModal, setShowMoveModal] = useState(false);
+    const [moveSearch, setMoveSearch] = useState('');
+
     useEffect(() => {
         loadCreatorsList();
     }, []);
@@ -110,6 +119,19 @@ const CreatorsView: React.FC = () => {
             newSelected.delete(itemId);
         } else {
             newSelected.add(itemId);
+        }
+        setSelectedItems(newSelected);
+    };
+
+    const toggleSetSelection = (set: CreatorSet, currentSelected: Set<string>) => {
+        const itemIds = set.items.map(i => i.id);
+        const allSelected = itemIds.every(id => currentSelected.has(id));
+
+        const newSelected = new Set(currentSelected);
+        if (allSelected) {
+            itemIds.forEach(id => newSelected.delete(id));
+        } else {
+            itemIds.forEach(id => newSelected.add(id));
         }
         setSelectedItems(newSelected);
     };
@@ -401,23 +423,43 @@ const CreatorsView: React.FC = () => {
     };
 
     // Derived state
-    const filteredCreators = creatorsList.filter(c =>
-        c.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredCreators = creatorsList
+        .filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()))
+        .sort((a, b) => {
+            if (creatorSort === 'az') return a.name.localeCompare(b.name);
+            if (creatorSort === 'za') return b.name.localeCompare(a.name);
+            if (creatorSort === 'items') {
+                const aItems = a.sets.reduce((sum, s) => sum + s.itemsCount, 0);
+                const bItems = b.sets.reduce((sum, s) => sum + s.itemsCount, 0);
+                return bItems - aItems;
+            }
+            return 0;
+        });
 
     return (
         <div className="flex h-full gap-6 overflow-hidden">
             {/* List Column */}
             <div className="w-1/3 flex flex-col gap-4 min-w-[250px] shrink-0 bg-white/[0.03] backdrop-blur-md border border-white/5 rounded-2xl p-4 shadow-xl">
-                <div className="bg-black/20 border border-white/10 rounded-xl px-4 py-3 flex items-center gap-2 shrink-0 focus-within:border-brand-primary/50 transition-colors">
-                    <Search size={18} className="text-slate-500" />
-                    <input
-                        type="text"
-                        placeholder="Filter creators..."
-                        className="bg-transparent border-none outline-none text-sm w-full text-slate-200 placeholder-slate-500"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
+                <div className="flex items-center gap-2 shrink-0">
+                    <div className="bg-black/20 border border-white/10 rounded-xl px-4 py-3 flex items-center gap-2 flex-grow focus-within:border-brand-primary/50 transition-colors">
+                        <Search size={18} className="text-slate-500" />
+                        <input
+                            type="text"
+                            placeholder="Filter creators..."
+                            className="bg-transparent border-none outline-none text-sm w-full text-slate-200 placeholder-slate-500"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+                    <button
+                        onClick={() => setCreatorSort(prev => prev === 'az' ? 'za' : prev === 'za' ? 'items' : 'az')}
+                        className="p-3 bg-white/5 border border-white/10 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all shadow-lg"
+                        title={`Sorting: ${creatorSort.toUpperCase()}`}
+                    >
+                        {creatorSort === 'az' && <SortAsc size={18} />}
+                        {creatorSort === 'za' && <SortDesc size={18} />}
+                        {creatorSort === 'items' && <ListFilter size={18} />}
+                    </button>
                 </div>
 
                 <div className="flex-grow overflow-y-auto custom-scrollbar space-y-2 pr-2">
@@ -450,7 +492,7 @@ const CreatorsView: React.FC = () => {
                             <div className="flex justify-between items-start">
                                 <div className="space-y-4 flex-grow">
                                     <div className="flex items-center gap-4">
-                                        <h2 className="text-3xl font-bold bg-gradient-to-r from-slate-100 to-slate-400 bg-clip-text text-transparent">{creatorDetails.name}</h2>
+                                        <h2 className="text-2xl font-bold bg-gradient-to-r from-slate-100 to-slate-400 bg-clip-text text-transparent">{creatorDetails.name}</h2>
                                         <button
                                             onClick={() => setEditingCreator(!editingCreator)}
                                             className={`p-2 rounded-lg transition-all duration-300 ${editingCreator ? 'bg-brand-primary/20 text-brand-secondary' : 'text-slate-500 hover:text-white hover:bg-white/10'}`}
@@ -504,19 +546,38 @@ const CreatorsView: React.FC = () => {
                                         </div>
                                     )}
                                 </div>
-                                <div className="flex gap-3">
+                                <div className="flex gap-2">
+                                    <div className="flex bg-white/5 border border-white/10 rounded-lg p-0.5 shrink-0">
+                                        <button
+                                            onClick={() => setSetSort(prev => prev === 'az' ? 'za' : prev === 'za' ? 'items' : 'az')}
+                                            className="p-1 px-2 rounded-md text-[10px] font-bold transition-all flex items-center gap-1.5 hover:bg-white/5 text-slate-400"
+                                            title={`Sort Sets: ${setSort.toUpperCase()}`}
+                                        >
+                                            {setSort === 'az' && <><SortAsc size={12} /> A-Z</>}
+                                            {setSort === 'za' && <><SortDesc size={12} /> Z-A</>}
+                                            {setSort === 'items' && <><ListFilter size={12} /> Size</>}
+                                        </button>
+                                        <div className="w-px bg-white/10 my-1 mx-1" />
+                                        <button
+                                            onClick={() => setItemSort(prev => prev === 'az' ? 'za' : 'az')}
+                                            className="p-1 px-2 rounded-md text-[10px] font-bold transition-all flex items-center gap-1.5 hover:bg-white/5 text-slate-400"
+                                            title={`Sort Items: ${itemSort.toUpperCase()}`}
+                                        >
+                                            {itemSort === 'az' ? <><SortAsc size={12} /> Items A-Z</> : <><SortDesc size={12} /> Items Z-A</>}
+                                        </button>
+                                    </div>
                                     <button
                                         onClick={() => setShowNewSetInput(true)}
-                                        className="flex items-center gap-2 bg-brand-primary/10 hover:bg-brand-primary/20 border border-brand-primary/20 hover:border-brand-primary/40 px-5 py-2.5 rounded-xl text-sm font-bold text-brand-secondary transition-all shadow-lg shadow-brand-primary/5"
+                                        className="flex items-center gap-2 bg-brand-primary/10 hover:bg-brand-primary/20 border border-brand-primary/20 hover:border-brand-primary/40 px-4 py-2 rounded-lg text-xs font-bold text-brand-secondary transition-all shadow-lg shadow-brand-primary/5"
                                     >
-                                        <FolderPlus size={18} /> New Set
+                                        <FolderPlus size={16} /> New Set
                                     </button>
                                 </div>
                             </div>
 
                             {/* New Set Input */}
                             {showNewSetInput && (
-                                <div className="mt-6 flex gap-2 animate-in slide-in-from-top-2 bg-black/40 p-2 rounded-xl border border-brand-primary/30 backdrop-blur-md absolute top-20 right-8 z-20 shadow-2xl">
+                                <div className="mt-6 flex gap-2 animate-in slide-in-from-top-2 bg-black/40 p-1.5 rounded-lg border border-brand-primary/30 backdrop-blur-md absolute top-20 right-8 z-20 shadow-2xl">
                                     <input
                                         autoFocus
                                         className="bg-transparent border-none rounded-lg px-3 py-2 text-sm w-64 text-slate-200 outline-none placeholder-slate-500"
@@ -545,10 +606,9 @@ const CreatorsView: React.FC = () => {
                         {/* Sets List */}
                         <div
                             ref={scrollContainerRef}
-                            className="flex-grow overflow-y-auto custom-scrollbar p-8 space-y-4"
+                            className="flex-grow overflow-y-auto custom-scrollbar p-6 space-y-3"
                             onDragOver={handleContainerDragOver}
                             onDragLeave={(e) => {
-                                // Only stop if leaving the container, not entering a child
                                 if (!scrollContainerRef.current?.contains(e.relatedTarget as Node)) {
                                     handleContainerDragLeave();
                                 }
@@ -567,235 +627,352 @@ const CreatorsView: React.FC = () => {
                                         }
                                     });
                                     // Sort roots
-                                    return tree.sort((a, b) => a.name.localeCompare(b.name));
+                                    return tree.sort((a, b) => {
+                                        if (setSort === 'az') return a.name.localeCompare(b.name);
+                                        if (setSort === 'za') return b.name.localeCompare(a.name);
+                                        if (setSort === 'items') return (b.items?.length || 0) - (a.items?.length || 0);
+                                        return 0;
+                                    });
                                 };
 
-                                const renderSet = (set: CreatorSet & { children: any[] }, level: number) => (
-                                    <div key={set.id} className={level > 0 ? 'ml-6 mt-3' : ''}>
-                                        <div
-                                            draggable={editingSetId !== set.id}
-                                            onDragStart={(e) => handleSetDragStart(e, set.id)}
-                                            className={`
+                                const renderSet = (set: CreatorSet & { children: any[] }, level: number) => {
+                                    const sortedChildren = [...set.children].sort((a, b) => {
+                                        if (setSort === 'az') return a.name.localeCompare(b.name);
+                                        if (setSort === 'za') return b.name.localeCompare(a.name);
+                                        if (setSort === 'items') return (b.items?.length || 0) - (a.items?.length || 0);
+                                        return 0;
+                                    });
+
+                                    const sortedItems = [...(set.items || [])].sort((a, b) => {
+                                        if (itemSort === 'az') return a.fileName.localeCompare(b.fileName);
+                                        if (itemSort === 'za') return b.fileName.localeCompare(a.fileName);
+                                        return 0;
+                                    });
+
+                                    return (
+                                        <div key={set.id} className={level > 0 ? 'ml-6 mt-3' : ''}>
+                                            <div
+                                                draggable={editingSetId !== set.id}
+                                                onDragStart={(e) => handleSetDragStart(e, set.id)}
+                                                className={`
                                                 relative bg-white/[0.02] border rounded-xl overflow-hidden transition-all duration-300
                                                 ${draggingSetId === set.id ? 'opacity-50 scale-95' : ''}
                                                 ${dropTargetSetId === set.id && dropPosition === 'merge'
-                                                    ? 'border-brand-primary bg-brand-primary/20 shadow-[0_0_30px_hsl(var(--brand-primary)/0.2)] scale-[1.02]'
-                                                    : 'border-white/5 hover:bg-white/[0.04] hover:border-brand-primary/30'}
+                                                        ? 'border-brand-primary bg-brand-primary/20 shadow-[0_0_30px_hsl(var(--brand-primary)/0.2)] scale-[1.02]'
+                                                        : 'border-white/5 hover:bg-white/[0.04] hover:border-brand-primary/30'}
                                                 ${dropTargetSetId === set.id && dropPosition === 'before' ? 'border-t-2 border-t-brand-primary pt-1' : ''}
                                                 ${dropTargetSetId === set.id && dropPosition === 'after' ? 'border-b-2 border-b-brand-primary pb-1' : ''}
                                                 ${editingSetId === set.id ? 'cursor-default opacity-100' : ''}
                                             `}
-                                            onDragOver={(e) => {
-                                                if (editingSetId === set.id) return;
-                                                handleSetDragOver(e, set.id)
-                                            }}
-                                            onDragLeave={handleSetDragLeave}
-                                            onDrop={(e) => {
-                                                if (editingSetId === set.id) return;
-                                                handleDropWrapper(e, set.id);
-                                            }}
-                                        >
-                                            {/* Set Header */}
-                                            <div className="p-4 flex items-center justify-between group">
-                                                <div className="flex items-center gap-4 flex-grow cursor-pointer" onClick={() => toggleSetExpansion(set.id)}>
-                                                    {editingSetId !== set.id && (
-                                                        <div className="cursor-grab active:cursor-grabbing p-1.5 text-slate-600 hover:text-slate-400" onMouseDown={e => e.stopPropagation()}>
-                                                            <GripVertical size={16} />
-                                                        </div>
-                                                    )}
-                                                    <div className={`p-1.5 rounded-lg transition-colors ${expandedSets.has(set.id) ? 'bg-white/10 text-white' : 'text-slate-500 group-hover:bg-white/5 group-hover:text-slate-300'}`}>
-                                                        {expandedSets.has(set.id) ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-                                                    </div>
-
-                                                    {editingSetId === set.id ? (
-                                                        <div className="flex-grow flex gap-2" onClick={e => e.stopPropagation()}>
-                                                            <input
-                                                                autoFocus
-                                                                className="bg-black/40 border border-brand-primary/50 rounded-lg px-3 py-1.5 text-sm text-white w-full outline-none caret-brand-primary shadow-inner"
-                                                                value={editSetForm.name}
-                                                                onChange={e => setEditSetForm({ ...editSetForm, name: e.target.value })}
-                                                                onKeyDown={e => {
-                                                                    if (e.key === 'Enter') handleUpdateSet(set.id);
-                                                                    e.stopPropagation();
-                                                                }}
-                                                            />
-                                                        </div>
-                                                    ) : (
-                                                        <div className="flex-grow min-w-0 pr-32 select-text">
-                                                            <div className="font-semibold text-slate-200 flex flex-wrap items-center gap-2 break-all leading-snug" title={set.name}>
-                                                                {set.patreon_url || set.website_url ? (
-                                                                    <a
-                                                                        href={(set.patreon_url || set.website_url) || undefined}
-                                                                        target="_blank"
-                                                                        onClick={e => e.stopPropagation()}
-                                                                        className="hover:text-brand-primary hover:underline decoration-brand-primary/30 underline-offset-4 decoration-2 transition-all cursor-alias"
-                                                                    >
-                                                                        {set.name}
-                                                                    </a>
-                                                                ) : (
-                                                                    set.name
-                                                                )}
+                                                onDragOver={(e) => {
+                                                    if (editingSetId === set.id) return;
+                                                    handleSetDragOver(e, set.id)
+                                                }}
+                                                onDragLeave={handleSetDragLeave}
+                                                onDrop={(e) => {
+                                                    if (editingSetId === set.id) return;
+                                                    handleDropWrapper(e, set.id);
+                                                }}
+                                            >
+                                                {/* Set Header */}
+                                                <div className="py-3 px-4 flex items-center justify-between group">
+                                                    <div className="flex items-center gap-4 flex-grow cursor-pointer" onClick={() => toggleSetExpansion(set.id)}>
+                                                        {editingSetId !== set.id && (
+                                                            <div className="cursor-grab active:cursor-grabbing p-1.5 text-slate-600 hover:text-slate-400" onMouseDown={e => e.stopPropagation()}>
+                                                                <GripVertical size={16} />
                                                             </div>
-                                                            <div className="text-xs text-slate-500 flex gap-4 mt-1.5">
-                                                                <span>{set.items.length} items</span>
-                                                                {(set.patreon_url || set.website_url || set.extra_links) && (
-                                                                    <div className="flex gap-1 shrink-0">
-                                                                        {set.patreon_url && <a href={set.patreon_url} target="_blank" onClick={e => e.stopPropagation()} className="p-1 hover:bg-white/10 rounded-md text-slate-400 hover:text-[#FF424D] transition-colors" title="Patreon"><ExternalLink size={12} /></a>}
-                                                                        {set.website_url && <a href={set.website_url} target="_blank" onClick={e => e.stopPropagation()} className="p-1 hover:bg-white/10 rounded-md text-slate-400 hover:text-blue-400 transition-colors" title="Website"><Globe size={12} /></a>}
-                                                                        {(() => {
-                                                                            try {
-                                                                                const extra = set.extra_links ? JSON.parse(set.extra_links) : [];
-                                                                                return extra.map((l: any, i: number) => (
-                                                                                    <a key={i} href={l.url} target="_blank" onClick={e => e.stopPropagation()} className="p-1 hover:bg-white/10 rounded-md text-slate-400 hover:text-green-400 transition-colors" title={l.type}><Link2 size={12} /></a>
-                                                                                ));
-                                                                            } catch { return null; }
-                                                                        })()}
-                                                                    </div>
-                                                                )}
-                                                            </div>
+                                                        )}
+                                                        <div className={`p-1.5 rounded-lg transition-colors ${expandedSets.has(set.id) ? 'bg-white/10 text-white' : 'text-slate-500 group-hover:bg-white/5 group-hover:text-slate-300'}`}>
+                                                            {expandedSets.has(set.id) ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                                                         </div>
-                                                    )}
-                                                </div>
 
-                                                <div className="absolute right-4 top-1/2 -translate-y-1/2 flex gap-2">
-                                                    {editingSetId === set.id ? (
-                                                        <div className="flex gap-2 animate-in fade-in bg-black/60 backdrop-blur-sm p-1 rounded-lg border border-white/10">
-                                                            <button onClick={() => handleUpdateSet(set.id)} className="p-2 bg-green-500/10 text-green-400 rounded-lg hover:bg-green-500/20 border border-green-500/20 transition-colors"><Check size={16} /></button>
-                                                            <button onClick={() => setEditingSetId(null)} className="p-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 border border-red-500/20 transition-colors"><X size={16} /></button>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0 bg-black/60 backdrop-blur-sm p-1 rounded-lg border border-white/10 shadow-xl">
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    setActiveParentSetId(set.id);
-                                                                    setShowNewSetInput(true);
-                                                                }}
-                                                                className="p-2 hover:bg-white/10 rounded-lg text-slate-500 hover:text-green-400 transition-colors"
-                                                                title="Add sub-set"
-                                                            >
-                                                                <FolderPlus size={16} />
-                                                            </button>
-                                                            {set.parent_id && (
-                                                                <button
-                                                                    onClick={async (e) => {
-                                                                        e.stopPropagation();
-                                                                        await (window as any).electron.invoke('move-set', {
-                                                                            setId: set.id,
-                                                                            targetParentId: null
-                                                                        });
-                                                                        loadCreatorDetails(selectedCreatorId!);
-                                                                    }}
-                                                                    className="p-2 hover:bg-white/10 rounded-lg text-slate-500 hover:text-brand-secondary transition-colors"
-                                                                    title="Move to root"
-                                                                >
-                                                                    <ArrowUp size={16} />
-                                                                </button>
-                                                            )}
-                                                            <button onClick={() => startEditingSet(set)} className="p-2 hover:bg-white/10 rounded-lg text-slate-500 hover:text-brand-primary transition-colors">
-                                                                <Edit2 size={16} />
-                                                            </button>
-                                                            <button onClick={() => handleDeleteSet(set.id)} className="p-2 hover:bg-white/10 rounded-lg text-slate-500 hover:text-red-400 transition-colors">
-                                                                <Trash2 size={16} />
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            {/* Set Edit Panel (Links) */}
-                                            {editingSetId === set.id && (
-                                                <div className="px-4 pb-4 pl-14 space-y-3 bg-black/20 pt-2 animate-in slide-in-from-top-1">
-                                                    {editSetForm.links.map((link, idx) => (
-                                                        <div key={idx} className="flex items-center gap-2">
-                                                            <div className="relative shrink-0 w-24">
-                                                                <select
-                                                                    className="w-full bg-black/20 border border-white/5 rounded-lg px-2 py-2 text-xs text-slate-300 outline-none appearance-none"
-                                                                    value={link.type}
-                                                                    onChange={e => {
-                                                                        const newLinks = [...editSetForm.links];
-                                                                        newLinks[idx].type = e.target.value;
-                                                                        setEditSetForm({ ...editSetForm, links: newLinks });
-                                                                    }}
-                                                                >
-                                                                    <option value="patreon">Patreon</option>
-                                                                    <option value="website">Website</option>
-                                                                    <option value="tumblr">Tumblr</option>
-                                                                    <option value="curseforge">CurseForge</option>
-                                                                    <option value="other">Other</option>
-                                                                </select>
-                                                            </div>
-                                                            <div className="flex-grow flex items-center gap-2 p-2 rounded-lg bg-black/20 border border-white/5 focus-within:border-brand-primary/30 transition-colors">
+                                                        {editingSetId === set.id ? (
+                                                            <div className="flex-grow flex gap-2" onClick={e => e.stopPropagation()}>
                                                                 <input
-                                                                    className="bg-transparent border-none outline-none text-xs w-full text-slate-300 placeholder-slate-600"
-                                                                    placeholder="URL"
-                                                                    value={link.url}
-                                                                    onChange={e => {
-                                                                        const newLinks = [...editSetForm.links];
-                                                                        newLinks[idx].url = e.target.value;
-                                                                        setEditSetForm({ ...editSetForm, links: newLinks });
+                                                                    autoFocus
+                                                                    className="bg-black/40 border border-brand-primary/50 rounded-lg px-3 py-1.5 text-sm text-white w-full outline-none caret-brand-primary shadow-inner"
+                                                                    value={editSetForm.name}
+                                                                    onChange={e => setEditSetForm({ ...editSetForm, name: e.target.value })}
+                                                                    onKeyDown={e => {
+                                                                        if (e.key === 'Enter') handleUpdateSet(set.id);
+                                                                        e.stopPropagation();
                                                                     }}
                                                                 />
                                                             </div>
-                                                            <button
-                                                                onClick={() => {
-                                                                    const newLinks = editSetForm.links.filter((_, i) => i !== idx);
-                                                                    setEditSetForm({ ...editSetForm, links: newLinks });
-                                                                }}
-                                                                className="p-2 hover:bg-white/10 rounded-lg text-slate-600 hover:text-red-400 transition-colors"
-                                                            >
-                                                                <X size={14} />
-                                                            </button>
-                                                        </div>
-                                                    ))}
-                                                    <button
-                                                        onClick={() => setEditSetForm({ ...editSetForm, links: [...editSetForm.links, { type: 'other', url: '' }] })}
-                                                        className="text-xs flex items-center gap-2 text-brand-secondary hover:text-white px-2 py-1 hover:bg-white/5 rounded-lg transition-colors"
-                                                    >
-                                                        <FolderPlus size={12} /> Add Link
-                                                    </button>
-                                                </div>
-                                            )}
-
-                                            {/* Items List (Collapsible) */}
-                                            {expandedSets.has(set.id) && (
-                                                <div className="border-t border-white/5 bg-black/20 min-h-[40px] shadow-inner">
-                                                    {set.items.map(item => (
-                                                        <div
-                                                            key={item.id}
-                                                            className={`px-4 py-2.5 flex items-center gap-3 text-sm transition-all cursor-grab active:cursor-grabbing border-l-[3px] select-none group/item ${selectedItems.has(item.id)
-                                                                ? 'border-brand-primary bg-brand-primary/10 text-white'
-                                                                : 'border-transparent text-slate-400 hover:bg-white/5 hover:text-slate-200'
-                                                                }`}
-                                                            onClick={(e) => toggleItemSelection(item.id, e.ctrlKey || e.shiftKey)}
-                                                            draggable
-                                                            onDragStart={(e) => handleDragStart(e, item.id)}
-                                                        >
-                                                            <GripVertical size={14} className="text-slate-600 opacity-0 group-hover/item:opacity-100 transition-opacity cursor-grab active:cursor-grabbing" />
-                                                            <div className={`w-3.5 h-3.5 rounded flex items-center justify-center border transition-all ${selectedItems.has(item.id) ? 'bg-brand-primary border-brand-primary' : 'border-slate-600 bg-transparent'}`}>
-                                                                {selectedItems.has(item.id) && <Check size={10} className="text-white" />}
+                                                        ) : (
+                                                            <div className="flex-grow min-w-0 pr-32 select-text">
+                                                                <div className="font-semibold text-slate-200 flex flex-wrap items-center gap-2 break-all leading-snug" title={set.name}>
+                                                                    {set.patreon_url || set.website_url ? (
+                                                                        <a
+                                                                            href={(set.patreon_url || set.website_url) || undefined}
+                                                                            target="_blank"
+                                                                            onClick={e => e.stopPropagation()}
+                                                                            className="hover:text-brand-primary hover:underline decoration-brand-primary/30 underline-offset-4 decoration-2 transition-all cursor-alias"
+                                                                        >
+                                                                            {set.name}
+                                                                        </a>
+                                                                    ) : (
+                                                                        set.name
+                                                                    )}
+                                                                </div>
+                                                                <div className="text-xs text-slate-500 flex gap-4 mt-1.5">
+                                                                    <span>{set.items.length} items</span>
+                                                                    {(set.patreon_url || set.website_url || set.extra_links) && (
+                                                                        <div className="flex gap-1 shrink-0">
+                                                                            {set.patreon_url && <a href={set.patreon_url} target="_blank" onClick={e => e.stopPropagation()} className="p-1 hover:bg-white/10 rounded-md text-slate-400 hover:text-[#FF424D] transition-colors" title="Patreon"><ExternalLink size={12} /></a>}
+                                                                            {set.website_url && <a href={set.website_url} target="_blank" onClick={e => e.stopPropagation()} className="p-1 hover:bg-white/10 rounded-md text-slate-400 hover:text-blue-400 transition-colors" title="Website"><Globe size={12} /></a>}
+                                                                            {(() => {
+                                                                                try {
+                                                                                    const extra = set.extra_links ? JSON.parse(set.extra_links) : [];
+                                                                                    return extra.map((l: any, i: number) => (
+                                                                                        <a key={i} href={l.url} target="_blank" onClick={e => e.stopPropagation()} className="p-1 hover:bg-white/10 rounded-md text-slate-400 hover:text-green-400 transition-colors" title={l.type}><Link2 size={12} /></a>
+                                                                                    ));
+                                                                                } catch { return null; }
+                                                                            })()}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
                                                             </div>
-                                                            <FileIcon size={14} className={selectedItems.has(item.id) ? 'text-brand-secondary' : 'text-slate-600 group-hover/item:text-slate-400 transition-colors'} />
-                                                            <span className="truncate font-mono text-xs opacity-90">{item.fileName}</span>
-                                                        </div>
-                                                    ))}
-                                                    {set.items.length === 0 && (
-                                                        <div className="px-10 py-6 text-xs text-slate-500 italic border-2 border-dashed border-white/5 m-4 rounded-xl text-center bg-white/[0.01]">
-                                                            Drag items here to organize
-                                                        </div>
-                                                    )}
+                                                        )}
+                                                    </div>
+
+                                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 flex gap-2">
+                                                        {editingSetId === set.id ? (
+                                                            <div className="flex gap-2 animate-in fade-in bg-black/60 backdrop-blur-sm p-1 rounded-lg border border-white/10">
+                                                                <button onClick={() => handleUpdateSet(set.id)} className="p-2 bg-green-500/10 text-green-400 rounded-lg hover:bg-green-500/20 border border-green-500/20 transition-colors"><Check size={16} /></button>
+                                                                <button onClick={() => setEditingSetId(null)} className="p-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 border border-red-500/20 transition-colors"><X size={16} /></button>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0 bg-black/60 backdrop-blur-sm p-1 rounded-lg border border-white/10 shadow-xl">
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        toggleSetSelection(set, selectedItems);
+                                                                    }}
+                                                                    className={`p-2 rounded-lg border transition-all ${set.items.length > 0 && set.items.every(i => selectedItems.has(i.id))
+                                                                        ? 'bg-brand-primary/20 border-brand-primary/30 text-brand-secondary'
+                                                                        : 'hover:bg-white/10 border-transparent text-slate-500 hover:text-white'
+                                                                        }`}
+                                                                    title="Select all items in set"
+                                                                >
+                                                                    <Check size={16} />
+                                                                </button>
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setActiveParentSetId(set.id);
+                                                                        setShowNewSetInput(true);
+                                                                    }}
+                                                                    className="p-2 hover:bg-white/10 rounded-lg text-slate-500 hover:text-green-400 transition-colors"
+                                                                    title="Add sub-set"
+                                                                >
+                                                                    <FolderPlus size={16} />
+                                                                </button>
+                                                                {set.parent_id && (
+                                                                    <button
+                                                                        onClick={async (e) => {
+                                                                            e.stopPropagation();
+                                                                            await (window as any).electron.invoke('move-set', {
+                                                                                setId: set.id,
+                                                                                targetParentId: null
+                                                                            });
+                                                                            loadCreatorDetails(selectedCreatorId!);
+                                                                        }}
+                                                                        className="p-2 hover:bg-white/10 rounded-lg text-slate-500 hover:text-brand-secondary transition-colors"
+                                                                        title="Move to root"
+                                                                    >
+                                                                        <ArrowUp size={16} />
+                                                                    </button>
+                                                                )}
+                                                                <button onClick={() => startEditingSet(set)} className="p-2 hover:bg-white/10 rounded-lg text-slate-500 hover:text-brand-primary transition-colors">
+                                                                    <Edit2 size={16} />
+                                                                </button>
+                                                                <button onClick={() => handleDeleteSet(set.id)} className="p-2 hover:bg-white/10 rounded-lg text-slate-500 hover:text-red-400 transition-colors">
+                                                                    <Trash2 size={16} />
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            )}
+
+                                                {/* Set Edit Panel (Links) */}
+                                                {editingSetId === set.id && (
+                                                    <div className="px-4 pb-4 pl-14 space-y-3 bg-black/20 pt-2 animate-in slide-in-from-top-1">
+                                                        {editSetForm.links.map((link, idx) => (
+                                                            <div key={idx} className="flex items-center gap-2">
+                                                                <div className="relative shrink-0 w-24">
+                                                                    <select
+                                                                        className="w-full bg-black/20 border border-white/5 rounded-lg px-2 py-2 text-xs text-slate-300 outline-none appearance-none"
+                                                                        value={link.type}
+                                                                        onChange={e => {
+                                                                            const newLinks = [...editSetForm.links];
+                                                                            newLinks[idx].type = e.target.value;
+                                                                            setEditSetForm({ ...editSetForm, links: newLinks });
+                                                                        }}
+                                                                    >
+                                                                        <option value="patreon">Patreon</option>
+                                                                        <option value="website">Website</option>
+                                                                        <option value="tumblr">Tumblr</option>
+                                                                        <option value="curseforge">CurseForge</option>
+                                                                        <option value="other">Other</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div className="flex-grow flex items-center gap-2 p-2 rounded-lg bg-black/20 border border-white/5 focus-within:border-brand-primary/30 transition-colors">
+                                                                    <input
+                                                                        className="bg-transparent border-none outline-none text-xs w-full text-slate-300 placeholder-slate-600"
+                                                                        placeholder="URL"
+                                                                        value={link.url}
+                                                                        onChange={e => {
+                                                                            const newLinks = [...editSetForm.links];
+                                                                            newLinks[idx].url = e.target.value;
+                                                                            setEditSetForm({ ...editSetForm, links: newLinks });
+                                                                        }}
+                                                                    />
+                                                                </div>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        const newLinks = editSetForm.links.filter((_, i) => i !== idx);
+                                                                        setEditSetForm({ ...editSetForm, links: newLinks });
+                                                                    }}
+                                                                    className="p-2 hover:bg-white/10 rounded-lg text-slate-600 hover:text-red-400 transition-colors"
+                                                                >
+                                                                    <X size={14} />
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                        <button
+                                                            onClick={() => setEditSetForm({ ...editSetForm, links: [...editSetForm.links, { type: 'other', url: '' }] })}
+                                                            className="text-xs flex items-center gap-2 text-brand-secondary hover:text-white px-2 py-1 hover:bg-white/5 rounded-lg transition-colors"
+                                                        >
+                                                            <FolderPlus size={12} /> Add Link
+                                                        </button>
+                                                    </div>
+                                                )}
+
+                                                {/* Items List (Collapsible) */}
+                                                {expandedSets.has(set.id) && (
+                                                    <div className="border-t border-white/5 bg-black/20 min-h-[40px] shadow-inner">
+                                                        {set.items.map(item => (
+                                                            <div
+                                                                key={item.id}
+                                                                className={`px-4 py-2.5 flex items-center gap-3 text-sm transition-all cursor-grab active:cursor-grabbing border-l-[3px] select-none group/item ${selectedItems.has(item.id)
+                                                                    ? 'border-brand-primary bg-brand-primary/10 text-white'
+                                                                    : 'border-transparent text-slate-400 hover:bg-white/5 hover:text-slate-200'
+                                                                    }`}
+                                                                onClick={(e) => toggleItemSelection(item.id, e.ctrlKey || e.shiftKey)}
+                                                                draggable
+                                                                onDragStart={(e) => handleDragStart(e, item.id)}
+                                                            >
+                                                                <GripVertical size={14} className="text-slate-600 opacity-0 group-hover/item:opacity-100 transition-opacity cursor-grab active:cursor-grabbing" />
+                                                                <div
+                                                                    className={`w-4 h-4 rounded flex items-center justify-center border transition-all cursor-pointer hover:border-brand-primary/60 ${selectedItems.has(item.id) ? 'bg-brand-primary border-brand-primary' : 'border-slate-600 bg-black/20'}`}
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        toggleItemSelection(item.id, true);
+                                                                    }}
+                                                                >
+                                                                    {selectedItems.has(item.id) && <Check size={11} className="text-white" />}
+                                                                </div>
+                                                                <FileIcon size={14} className={selectedItems.has(item.id) ? 'text-brand-secondary' : 'text-slate-600 group-hover/item:text-slate-400 transition-colors'} />
+                                                                <span className="truncate font-mono text-xs opacity-90">{item.fileName}</span>
+                                                            </div>
+                                                        ))}
+                                                        {set.items.length === 0 && (
+                                                            <div className="px-10 py-6 text-xs text-slate-500 italic border-2 border-dashed border-white/5 m-4 rounded-xl text-center bg-white/[0.01]">
+                                                                Drag items here to organize
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            {/* Recursive Children */}
+                                            {expandedSets.has(set.id) && sortedChildren.map(child => renderSet(child, level + 1))}
                                         </div>
-                                        {/* Recursive Children */}
-                                        {expandedSets.has(set.id) && set.children.map(child => renderSet(child, level + 1))}
-                                    </div>
-                                );
+                                    );
+                                };
 
                                 const tree = buildTree(creatorDetails.sets);
                                 return tree.map(set => renderSet(set, 0));
                             })()}
                         </div>
+
+                        {/* Selection Toolbar */}
+                        {selectedItems.size > 0 && (
+                            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-bg-card/90 backdrop-blur-xl border border-brand-primary/30 py-2 px-4 rounded-xl shadow-2xl flex items-center gap-4 animate-in slide-in-from-bottom-4 duration-300 z-30">
+                                <div className="flex flex-col">
+                                    <span className="text-[10px] font-bold text-brand-secondary uppercase tracking-widest">{selectedItems.size} Selected</span>
+                                    <span className="text-[8px] text-slate-500">Items to manage</span>
+                                </div>
+                                <div className="w-px h-6 bg-white/10" />
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setShowMoveModal(true)}
+                                        className="flex items-center gap-2 px-4 py-2 bg-brand-primary hover:bg-brand-secondary text-white rounded-lg text-xs font-bold transition-all shadow-lg shadow-brand-primary/20"
+                                    >
+                                        <Move size={14} /> Move to Set
+                                    </button>
+                                    <button
+                                        onClick={() => setSelectedItems(new Set())}
+                                        className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white rounded-lg text-xs font-bold transition-all"
+                                    >
+                                        <X size={14} /> Clear
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Move to Set Modal */}
+                        {showMoveModal && (
+                            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-6 animate-in fade-in duration-200">
+                                <div className="bg-bg-card border border-border-subtle rounded-[2rem] w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[80vh]">
+                                    <div className="flex justify-between items-center px-8 py-6 border-b border-white/5 bg-white/5">
+                                        <h2 className="text-xl font-bold bg-gradient-to-r from-brand-primary to-brand-secondary bg-clip-text text-transparent">
+                                            Move Items
+                                        </h2>
+                                        <button onClick={() => setShowMoveModal(false)} className="p-2 hover:bg-white/5 rounded-lg transition-colors text-slate-400 hover:text-white">
+                                            <X size={20} />
+                                        </button>
+                                    </div>
+
+                                    <div className="p-6 border-b border-white/5">
+                                        <div className="bg-black/20 border border-white/10 rounded-xl px-4 py-3 flex items-center gap-2 focus-within:border-brand-primary/50 transition-colors">
+                                            <Search size={18} className="text-slate-500" />
+                                            <input
+                                                type="text"
+                                                placeholder="Search destination set..."
+                                                className="bg-transparent border-none outline-none text-sm w-full text-slate-200 placeholder-slate-500"
+                                                value={moveSearch}
+                                                onChange={(e) => setMoveSearch(e.target.value)}
+                                                autoFocus
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="flex-grow overflow-y-auto custom-scrollbar p-6 space-y-2">
+                                        {creatorDetails.sets
+                                            .filter(s => s.name.toLowerCase().includes(moveSearch.toLowerCase()))
+                                            .sort((a, b) => a.name.localeCompare(b.name))
+                                            .map(set => (
+                                                <button
+                                                    key={set.id}
+                                                    onClick={() => {
+                                                        handleMoveItems(set.id, Array.from(selectedItems));
+                                                        setShowMoveModal(false);
+                                                        setMoveSearch('');
+                                                    }}
+                                                    className="w-full p-4 rounded-xl border border-white/5 bg-white/5 hover:bg-brand-primary/10 hover:border-brand-primary/30 transition-all text-left flex items-center justify-between group"
+                                                >
+                                                    <div className="flex flex-col">
+                                                        <span className="font-semibold text-slate-200 group-hover:text-brand-secondary">{set.name}</span>
+                                                        <span className="text-[10px] text-slate-500 uppercase tracking-widest">{set.items?.length || 0} items</span>
+                                                    </div>
+                                                    <ChevronRight size={16} className="text-slate-600 group-hover:text-brand-primary" />
+                                                </button>
+                                            ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </>
                 ) : (
                     <div className="flex-grow flex flex-col items-center justify-center text-slate-500 gap-4">
