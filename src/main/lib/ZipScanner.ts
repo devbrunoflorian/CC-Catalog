@@ -52,9 +52,13 @@ export class ZipScanner {
                         creatorName = pathParts[0] === 'Mods' ? (pathParts[1] || 'Unknown') : pathParts[0];
 
                         if (pathParts.length >= 3 && pathParts[0] === 'Mods') {
-                            setName = pathParts[2];
+                            const folderName = pathParts[2];
+                            // If folder is the package file itself (no subfolder), use Unsorted
+                            setName = (folderName && !folderName.toLowerCase().endsWith('.package')) ? folderName : 'Unsorted';
                         } else if (pathParts.length >= 2 && pathParts[0] !== 'Mods') {
-                            setName = pathParts[1].endsWith('.package') ? 'General' : pathParts[1];
+                            const folderName = pathParts[1];
+                            // If folder is the package file itself, use Unsorted
+                            setName = (folderName && !folderName.toLowerCase().endsWith('.package')) ? folderName : 'Unsorted';
                         }
                     }
 
@@ -188,35 +192,51 @@ export class ZipScanner {
             // For now, let's just do the insert.
 
             // Try to find set
+            // Try to find set (Case Insensitive to avoid duplicates likely)
             let setResult = db
                 .select({ id: ccSets.id })
                 .from(ccSets)
-                .where(sql`${ccSets.creatorId} = ${creatorId} AND ${ccSets.name} = ${item.setName}`)
+                .where(sql`${ccSets.creatorId} = ${creatorId} AND lower(${ccSets.name}) = lower(${item.setName})`)
                 .get();
 
             if (!setResult) {
                 const newSetId = randomUUID();
-                db.insert(ccSets)
-                    .values({
-                        id: newSetId,
-                        creatorId: creatorId,
-                        name: item.setName,
-                    })
-                    .onConflictDoNothing()
-                    .run();
-                setResult = { id: newSetId };
+                // Ensure we don't insert duplicate if race condition, though unlikely in single thread sqlite
+                const checkAgain = db.select({ id: ccSets.id }).from(ccSets)
+                    .where(sql`${ccSets.creatorId} = ${creatorId} AND lower(${ccSets.name}) = lower(${item.setName})`)
+                    .get();
+
+                if (checkAgain) {
+                    setResult = checkAgain;
+                } else {
+                    db.insert(ccSets)
+                        .values({
+                            id: newSetId,
+                            creatorId: creatorId,
+                            name: item.setName,
+                        })
+                        .run();
+                    setResult = { id: newSetId };
+                }
+            }
+
+            // Check if Item exists in ANY set for this creator
+            const existingItem = db.select({ id: ccItems.id })
+                .from(ccItems)
+                .leftJoin(ccSets, eq(ccItems.ccSetId, ccSets.id))
+                .where(sql`${ccSets.creatorId} = ${creatorId} AND lower(${ccItems.fileName}) = lower(${item.fileName})`)
+                .get();
+
+            if (existingItem) {
+                continue;
             }
 
             // Insert Item
             db.insert(ccItems)
                 .values({
                     id: randomUUID(),
-                    ccSetId: setResult.id,
+                    ccSetId: setResult.id || '', // Should not be empty logic
                     fileName: item.fileName,
-                })
-                .onConflictDoUpdate({
-                    target: [ccItems.ccSetId, ccItems.fileName],
-                    set: { updatedAt: sql`CURRENT_TIMESTAMP` },
                 })
                 .run();
         }

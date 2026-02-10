@@ -446,7 +446,7 @@ let splashWin: BrowserWindow | null = null;
 function createWindow() {
     const iconPath = process.env.VITE_DEV_SERVER_URL
         ? join(process.env.DIST!, 'public/favicon.png')
-        : join(process.env.DIST!, 'favicon.png');
+        : join(process.env.DIST!, 'dist/favicon.png');
 
     win = new BrowserWindow({
         width: 1200,
@@ -470,7 +470,8 @@ function createWindow() {
         console.log('[MAIN] Loading URL:', process.env.VITE_DEV_SERVER_URL);
         win.loadURL(process.env.VITE_DEV_SERVER_URL);
     } else {
-        const htmlPath = join(process.env.DIST!, 'renderer/index.html');
+        // In production, index.html is in dist/index.html relative to app root
+        const htmlPath = join(process.env.DIST!, 'dist/index.html');
         console.log('[MAIN] Loading file:', htmlPath);
         win.loadFile(htmlPath);
     }
