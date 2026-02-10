@@ -39,6 +39,7 @@ export const ccSets = sqliteTable('cc_sets', {
     extraLinks: text('extra_links'), // JSON array of additional links
     releaseDate: text('release_date'),
     sortOrder: integer('sort_order').default(0),
+    parentId: text('parent_id'), // For nested sets (subfolders)
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
     updatedAt: text('updated_at').default(sql`CURRENT_TIMESTAMP`),
 });

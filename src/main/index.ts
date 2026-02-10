@@ -74,10 +74,32 @@ ipcMain.handle('get-creator-details', async (_, id) => {
         return { ...set, items };
     });
 
-    return { ...creator, sets: setsWithItems };
+    return {
+        ...creator,
+        patreon_url: creator.patreonUrl,
+        website_url: creator.websiteUrl,
+        social_links: creator.socialLinks,
+        is_active: creator.isActive,
+        sets: setsWithItems.map(set => ({
+            ...set,
+            creator_id: set.creatorId,
+            parent_id: set.parentId,
+            patreon_url: set.patreonUrl,
+            website_url: set.websiteUrl,
+            extra_links: set.extraLinks,
+            release_date: set.releaseDate,
+            items: set.items.map(item => ({
+                ...item,
+                cc_set_id: item.ccSetId,
+                file_name: item.fileName,
+                display_name: item.displayName,
+                download_url: item.downloadUrl
+            }))
+        }))
+    };
 });
 
-ipcMain.handle('create-set', async (_, { creatorId, name }) => {
+ipcMain.handle('create-set', async (_, { creatorId, name, parentId }: any) => {
     if (!dbInitialized) throw new Error('Database not initialized');
     const db = getDb();
     const newId = randomUUID();
@@ -86,6 +108,7 @@ ipcMain.handle('create-set', async (_, { creatorId, name }) => {
         id: newId,
         creatorId,
         name,
+        parentId: parentId || null,
         updatedAt: sql`CURRENT_TIMESTAMP`
     }).run();
 
@@ -128,6 +151,22 @@ ipcMain.handle('move-items', async (_, { itemIds, targetSetId }) => {
             .where(eq(ccItems.id, itemId))
             .run();
     }
+
+    saveDatabase();
+    return { success: true };
+});
+
+ipcMain.handle('move-set', async (_, { setId, targetParentId }) => {
+    if (!dbInitialized) throw new Error('Database not initialized');
+    const db = getDb();
+
+    db.update(ccSets)
+        .set({
+            parentId: targetParentId, // Can be null to move back to root
+            updatedAt: sql`CURRENT_TIMESTAMP`
+        })
+        .where(eq(ccSets.id, setId))
+        .run();
 
     saveDatabase();
     return { success: true };
@@ -551,6 +590,13 @@ if (!gotTheLock) {
             try {
                 const db = getDb();
                 db.run(sql`ALTER TABLE cc_sets ADD COLUMN extra_links TEXT`);
+            } catch (e) {
+                // Column likely exists
+            }
+
+            try {
+                const db = getDb();
+                db.run(sql`ALTER TABLE cc_sets ADD COLUMN parent_id TEXT`);
             } catch (e) {
                 // Column likely exists
             }

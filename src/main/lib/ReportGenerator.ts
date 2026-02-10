@@ -64,48 +64,64 @@ export class ReportGenerator {
             }
 
             if (options.includeSets) {
-                let sets = db.select().from(ccSets).where(eq(ccSets.creatorId, creator.id)).all();
+                let allSets = db.select().from(ccSets).where(eq(ccSets.creatorId, creator.id)).all();
                 if (targetSetIds !== null) {
-                    sets = sets.filter(s => targetSetIds!.includes(s.id));
+                    allSets = allSets.filter(s => targetSetIds!.includes(s.id));
                 }
-                sets.sort((a, b) => a.name.localeCompare(b.name));
 
-                if (sets.length === 0 && options.includeCreators) {
+                const renderSets = (parentId: string | null, level: number) => {
+                    const children = allSets.filter(s => s.parentId === parentId);
+                    children.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || a.name.localeCompare(b.name));
+
+                    children.forEach((set) => {
+                        let setName = set.name;
+                        if (set.patreonUrl) setName = `**[${setName}](${set.patreonUrl})**`;
+                        else if (set.websiteUrl) setName = `**[${setName}](${set.websiteUrl})**`;
+                        else setName = `**${setName}**`;
+
+                        const indent = '  '.repeat(level);
+                        const headerPrefix = level === 0 ? '### 📁' : '#### 📂'; // Use level to differentiate
+
+                        report += `${headerPrefix} ${setName}\n`;
+
+                        if (options.includeItems) {
+                            let items = db.select().from(ccItems).where(eq(ccItems.ccSetId, set.id)).all();
+                            if (targetItemNames !== null) {
+                                items = items.filter(i => targetItemNames!.has(i.fileName));
+                            }
+                            items.sort((a, b) => a.fileName.localeCompare(b.fileName));
+
+                            if (items.length > 0) {
+                                items.forEach(item => {
+                                    report += `- 📦 \`${item.fileName}\``;
+                                    if (options.includeCategory && item.categoryId) {
+                                        const cat = db.select().from(categories).where(eq(categories.id, item.categoryId)).get();
+                                        if (cat) report += ` _[${cat.name}]_`;
+                                    }
+                                    report += `\n`;
+                                });
+                                report += `\n`;
+                            }
+                        } else {
+                            report += `\n`;
+                        }
+
+                        // Recursively render children
+                        renderSets(set.id, level + 1);
+                    });
+                };
+
+                const rootSets = allSets.filter(s => !s.parentId);
+                if (allSets.length > 0 && rootSets.length === 0 && targetSetIds) {
+                    // If we filtered and only have children, show them as roots for the report
+                    renderSets(null, options.includeCreators ? 1 : 0);
+                } else {
+                    renderSets(null, options.includeCreators ? 1 : 0);
+                }
+
+                if (allSets.length === 0 && options.includeCreators) {
                     report += `_No sets found._\n\n`;
                 }
-
-                sets.forEach((set) => {
-                    let setName = set.name;
-                    if (set.patreonUrl) setName = `[${setName}](${set.patreonUrl})`;
-                    else if (set.websiteUrl) setName = `[${setName}](${set.websiteUrl})`;
-
-                    const prefix = options.includeCreators ? '###' : '##';
-                    report += `${prefix} ${setName}\n`;
-
-                    if (options.includeItems) {
-                        let items = db.select().from(ccItems).where(eq(ccItems.ccSetId, set.id)).all();
-                        if (targetItemNames !== null) {
-                            items = items.filter(i => targetItemNames!.has(i.fileName));
-                        }
-                        items.sort((a, b) => a.fileName.localeCompare(b.fileName));
-
-                        if (items.length > 0) report += `\n`;
-
-                        items.forEach(item => {
-                            let itemStr = `- ${item.fileName}`;
-                            if (options.includeCategory && item.categoryId) {
-                                const cat = db.select().from(categories).where(eq(categories.id, item.categoryId)).get();
-                                if (cat) {
-                                    itemStr += ` _(${cat.name})_`;
-                                }
-                            }
-                            report += `${itemStr}\n`;
-                        });
-                        report += `\n`;
-                    } else {
-                        report += `\n`;
-                    }
-                });
             }
 
             if (options.includeCreators) report += '---\n\n';

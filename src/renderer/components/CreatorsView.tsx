@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, ExternalLink, Link2, Globe, FolderPlus, Trash2, Edit2, File as FileIcon, ChevronRight, ChevronDown, Check, X, GripVertical, Save } from 'lucide-react';
+import { Search, ExternalLink, Link2, Globe, FolderPlus, Trash2, Edit2, File as FileIcon, ChevronRight, ChevronDown, Check, X, GripVertical, Save, ArrowUp } from 'lucide-react';
 
 interface Item {
     id: string;
@@ -10,9 +10,10 @@ interface Item {
 interface CreatorSet {
     id: string;
     name: string;
-    patreonUrl?: string;
-    websiteUrl?: string;
-    extraLinks?: string;
+    parent_id?: string | null;
+    patreon_url?: string | null;
+    website_url?: string | null;
+    extra_links?: string | null;
     items: Item[];
 }
 
@@ -62,6 +63,7 @@ const CreatorsView: React.FC = () => {
     const [editSetForm, setEditSetForm] = useState<{ name: string; links: { type: string; url: string }[] }>({ name: '', links: [] });
     const [newSetName, setNewSetName] = useState('');
     const [showNewSetInput, setShowNewSetInput] = useState(false);
+    const [activeParentSetId, setActiveParentSetId] = useState<string | null>(null);
 
     useEffect(() => {
         loadCreatorsList();
@@ -116,10 +118,12 @@ const CreatorsView: React.FC = () => {
         if (!newSetName.trim() || !selectedCreatorId) return;
         await (window as any).electron.invoke('create-set', {
             creatorId: selectedCreatorId,
-            name: newSetName
+            name: newSetName,
+            parentId: activeParentSetId
         });
         setNewSetName('');
         setShowNewSetInput(false);
+        setActiveParentSetId(null);
         loadCreatorDetails(selectedCreatorId);
     };
 
@@ -200,11 +204,11 @@ const CreatorsView: React.FC = () => {
     const startEditingSet = (set: CreatorSet) => {
         setEditingSetId(set.id);
         const links: { type: string; url: string }[] = [];
-        if (set.patreonUrl) links.push({ type: 'patreon', url: set.patreonUrl });
-        if (set.websiteUrl) links.push({ type: 'website', url: set.websiteUrl });
-        if (set.extraLinks) {
+        if (set.patreon_url) links.push({ type: 'patreon', url: set.patreon_url });
+        if (set.website_url) links.push({ type: 'website', url: set.website_url });
+        if (set.extra_links) {
             try {
-                const extra = JSON.parse(set.extraLinks);
+                const extra = JSON.parse(set.extra_links);
                 if (Array.isArray(extra)) links.push(...extra);
             } catch { }
         }
@@ -275,7 +279,7 @@ const CreatorsView: React.FC = () => {
         setDropPosition(null);
     };
 
-    const handleDrop = (e: React.DragEvent, targetSetId: string) => {
+    const handleDrop = async (e: React.DragEvent, targetSetId: string) => {
         e.preventDefault();
         e.stopPropagation();
 
@@ -291,11 +295,12 @@ const CreatorsView: React.FC = () => {
             if (!sourceSetId || sourceSetId === targetSetId) return;
 
             if (dropPosition === 'merge') {
-                if (confirm('Are you sure you want to merge these sets? The dragged set will be deleted and its items moved to the target set.')) {
-                    (window as any).electron.invoke('merge-sets', { sourceSetId, targetSetId }).then(() => {
-                        loadCreatorDetails(selectedCreatorId!);
-                    });
-                }
+                // Moving set into another (hierarchy)
+                await (window as any).electron.invoke('move-set', {
+                    setId: sourceSetId,
+                    targetParentId: targetSetId
+                });
+                loadCreatorDetails(selectedCreatorId!);
             } else if (dropPosition === 'before' || dropPosition === 'after') {
                 // Reorder Logic
                 if (!creatorDetails) return;
@@ -511,19 +516,26 @@ const CreatorsView: React.FC = () => {
 
                             {/* New Set Input */}
                             {showNewSetInput && (
-                                <div className="mt-6 flex gap-2 animate-in slide-in-from-top-2 bg-black/40 p-2 rounded-xl border border-white/10 backdrop-blur-md absolute top-20 right-8 z-20 shadow-2xl">
+                                <div className="mt-6 flex gap-2 animate-in slide-in-from-top-2 bg-black/40 p-2 rounded-xl border border-brand-primary/30 backdrop-blur-md absolute top-20 right-8 z-20 shadow-2xl">
                                     <input
                                         autoFocus
                                         className="bg-transparent border-none rounded-lg px-3 py-2 text-sm w-64 text-slate-200 outline-none placeholder-slate-500"
-                                        placeholder="Set Name (e.g. Kitchen, Berlin)"
+                                        placeholder={activeParentSetId ? "Sub-set Name..." : "Set Name (e.g. Kitchen, Berlin)"}
                                         value={newSetName}
                                         onChange={e => setNewSetName(e.target.value)}
                                         onKeyDown={e => e.key === 'Enter' && handleCreateSet()}
                                     />
-                                    <button onClick={handleCreateSet} className="bg-brand-primary px-3 rounded-lg text-white hover:bg-brand-secondary transition-colors">
+                                    <button onClick={handleCreateSet} className="bg-brand-primary px-3 rounded-lg text-white hover:bg-brand-secondary transition-colors" title="Create">
                                         <Check size={18} />
                                     </button>
-                                    <button onClick={() => setShowNewSetInput(false)} className="bg-white/5 px-3 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-white/10 transition-colors">
+                                    <button
+                                        onClick={() => {
+                                            setShowNewSetInput(false);
+                                            setActiveParentSetId(null);
+                                        }}
+                                        className="bg-white/5 px-3 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-white/10 transition-colors"
+                                        title="Cancel"
+                                    >
                                         <X size={18} />
                                     </button>
                                 </div>
@@ -542,190 +554,247 @@ const CreatorsView: React.FC = () => {
                                 }
                             }}
                         >
-                            {creatorDetails.sets.map((set) => (
-                                <div
-                                    key={set.id}
-                                    draggable={editingSetId !== set.id}
-                                    onDragStart={(e) => handleSetDragStart(e, set.id)}
-                                    className={`
-                                        relative bg-white/[0.02] border rounded-xl overflow-hidden transition-all duration-300
-                                        ${draggingSetId === set.id ? 'opacity-50 scale-95' : ''}
-                                        ${dropTargetSetId === set.id && dropPosition === 'merge'
-                                            ? 'border-brand-primary bg-brand-primary/20 shadow-[0_0_30px_hsl(var(--brand-primary)/0.2)] scale-[1.02]'
-                                            : 'border-white/5 hover:bg-white/[0.04] hover:border-brand-primary/30'}
-                                        ${dropTargetSetId === set.id && dropPosition === 'before' ? 'border-t-2 border-t-brand-primary pt-1' : ''}
-                                        ${dropTargetSetId === set.id && dropPosition === 'after' ? 'border-b-2 border-b-brand-primary pb-1' : ''}
-                                        ${editingSetId === set.id ? 'cursor-default opacity-100' : ''}
-                                    `}
-                                    onDragOver={(e) => {
-                                        if (editingSetId === set.id) return; // Disable drop on editing set
-                                        handleSetDragOver(e, set.id)
-                                    }}
-                                    onDragLeave={handleSetDragLeave}
-                                    onDrop={(e) => {
-                                        if (editingSetId === set.id) return;
-                                        handleDropWrapper(e, set.id);
-                                    }}
-                                >
-                                    {/* Set Header */}
-                                    <div className="p-4 flex items-center justify-between group">
-                                        <div className="flex items-center gap-4 flex-grow cursor-pointer" onClick={(e) => {
-                                            // Don't toggle expansion if editing? Usually okay.
-                                            toggleSetExpansion(set.id);
-                                        }}>
-                                            {editingSetId !== set.id && (
-                                                <div className="cursor-grab active:cursor-grabbing p-1.5 text-slate-600 hover:text-slate-400" onMouseDown={e => e.stopPropagation()}>
-                                                    <GripVertical size={16} />
+                            {(() => {
+                                const buildTree = (sets: CreatorSet[]) => {
+                                    const tree: (CreatorSet & { children: any[] })[] = [];
+                                    const map = new Map();
+                                    sets.forEach(s => map.set(s.id, { ...s, children: [] }));
+                                    sets.forEach(s => {
+                                        if (s.parent_id && map.has(s.parent_id)) {
+                                            map.get(s.parent_id).children.push(map.get(s.id));
+                                        } else {
+                                            tree.push(map.get(s.id));
+                                        }
+                                    });
+                                    // Sort roots
+                                    return tree.sort((a, b) => a.name.localeCompare(b.name));
+                                };
+
+                                const renderSet = (set: CreatorSet & { children: any[] }, level: number) => (
+                                    <div key={set.id} className={level > 0 ? 'ml-6 mt-3' : ''}>
+                                        <div
+                                            draggable={editingSetId !== set.id}
+                                            onDragStart={(e) => handleSetDragStart(e, set.id)}
+                                            className={`
+                                                relative bg-white/[0.02] border rounded-xl overflow-hidden transition-all duration-300
+                                                ${draggingSetId === set.id ? 'opacity-50 scale-95' : ''}
+                                                ${dropTargetSetId === set.id && dropPosition === 'merge'
+                                                    ? 'border-brand-primary bg-brand-primary/20 shadow-[0_0_30px_hsl(var(--brand-primary)/0.2)] scale-[1.02]'
+                                                    : 'border-white/5 hover:bg-white/[0.04] hover:border-brand-primary/30'}
+                                                ${dropTargetSetId === set.id && dropPosition === 'before' ? 'border-t-2 border-t-brand-primary pt-1' : ''}
+                                                ${dropTargetSetId === set.id && dropPosition === 'after' ? 'border-b-2 border-b-brand-primary pb-1' : ''}
+                                                ${editingSetId === set.id ? 'cursor-default opacity-100' : ''}
+                                            `}
+                                            onDragOver={(e) => {
+                                                if (editingSetId === set.id) return;
+                                                handleSetDragOver(e, set.id)
+                                            }}
+                                            onDragLeave={handleSetDragLeave}
+                                            onDrop={(e) => {
+                                                if (editingSetId === set.id) return;
+                                                handleDropWrapper(e, set.id);
+                                            }}
+                                        >
+                                            {/* Set Header */}
+                                            <div className="p-4 flex items-center justify-between group">
+                                                <div className="flex items-center gap-4 flex-grow cursor-pointer" onClick={() => toggleSetExpansion(set.id)}>
+                                                    {editingSetId !== set.id && (
+                                                        <div className="cursor-grab active:cursor-grabbing p-1.5 text-slate-600 hover:text-slate-400" onMouseDown={e => e.stopPropagation()}>
+                                                            <GripVertical size={16} />
+                                                        </div>
+                                                    )}
+                                                    <div className={`p-1.5 rounded-lg transition-colors ${expandedSets.has(set.id) ? 'bg-white/10 text-white' : 'text-slate-500 group-hover:bg-white/5 group-hover:text-slate-300'}`}>
+                                                        {expandedSets.has(set.id) ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                                                    </div>
+
+                                                    {editingSetId === set.id ? (
+                                                        <div className="flex-grow flex gap-2" onClick={e => e.stopPropagation()}>
+                                                            <input
+                                                                autoFocus
+                                                                className="bg-black/40 border border-brand-primary/50 rounded-lg px-3 py-1.5 text-sm text-white w-full outline-none caret-brand-primary shadow-inner"
+                                                                value={editSetForm.name}
+                                                                onChange={e => setEditSetForm({ ...editSetForm, name: e.target.value })}
+                                                                onKeyDown={e => {
+                                                                    if (e.key === 'Enter') handleUpdateSet(set.id);
+                                                                    e.stopPropagation();
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex-grow min-w-0 pr-32 select-text">
+                                                            <div className="font-semibold text-slate-200 flex flex-wrap items-center gap-2 break-all leading-snug" title={set.name}>
+                                                                {set.patreon_url || set.website_url ? (
+                                                                    <a
+                                                                        href={(set.patreon_url || set.website_url) || undefined}
+                                                                        target="_blank"
+                                                                        onClick={e => e.stopPropagation()}
+                                                                        className="hover:text-brand-primary hover:underline decoration-brand-primary/30 underline-offset-4 decoration-2 transition-all cursor-alias"
+                                                                    >
+                                                                        {set.name}
+                                                                    </a>
+                                                                ) : (
+                                                                    set.name
+                                                                )}
+                                                            </div>
+                                                            <div className="text-xs text-slate-500 flex gap-4 mt-1.5">
+                                                                <span>{set.items.length} items</span>
+                                                                {(set.patreon_url || set.website_url || set.extra_links) && (
+                                                                    <div className="flex gap-1 shrink-0">
+                                                                        {set.patreon_url && <a href={set.patreon_url} target="_blank" onClick={e => e.stopPropagation()} className="p-1 hover:bg-white/10 rounded-md text-slate-400 hover:text-[#FF424D] transition-colors" title="Patreon"><ExternalLink size={12} /></a>}
+                                                                        {set.website_url && <a href={set.website_url} target="_blank" onClick={e => e.stopPropagation()} className="p-1 hover:bg-white/10 rounded-md text-slate-400 hover:text-blue-400 transition-colors" title="Website"><Globe size={12} /></a>}
+                                                                        {(() => {
+                                                                            try {
+                                                                                const extra = set.extra_links ? JSON.parse(set.extra_links) : [];
+                                                                                return extra.map((l: any, i: number) => (
+                                                                                    <a key={i} href={l.url} target="_blank" onClick={e => e.stopPropagation()} className="p-1 hover:bg-white/10 rounded-md text-slate-400 hover:text-green-400 transition-colors" title={l.type}><Link2 size={12} /></a>
+                                                                                ));
+                                                                            } catch { return null; }
+                                                                        })()}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                            )}
-                                            <div className={`p-1.5 rounded-lg transition-colors ${expandedSets.has(set.id) ? 'bg-white/10 text-white' : 'text-slate-500 group-hover:bg-white/5 group-hover:text-slate-300'}`}>
-                                                {expandedSets.has(set.id) ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+
+                                                <div className="absolute right-4 top-1/2 -translate-y-1/2 flex gap-2">
+                                                    {editingSetId === set.id ? (
+                                                        <div className="flex gap-2 animate-in fade-in bg-black/60 backdrop-blur-sm p-1 rounded-lg border border-white/10">
+                                                            <button onClick={() => handleUpdateSet(set.id)} className="p-2 bg-green-500/10 text-green-400 rounded-lg hover:bg-green-500/20 border border-green-500/20 transition-colors"><Check size={16} /></button>
+                                                            <button onClick={() => setEditingSetId(null)} className="p-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 border border-red-500/20 transition-colors"><X size={16} /></button>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0 bg-black/60 backdrop-blur-sm p-1 rounded-lg border border-white/10 shadow-xl">
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setActiveParentSetId(set.id);
+                                                                    setShowNewSetInput(true);
+                                                                }}
+                                                                className="p-2 hover:bg-white/10 rounded-lg text-slate-500 hover:text-green-400 transition-colors"
+                                                                title="Add sub-set"
+                                                            >
+                                                                <FolderPlus size={16} />
+                                                            </button>
+                                                            {set.parent_id && (
+                                                                <button
+                                                                    onClick={async (e) => {
+                                                                        e.stopPropagation();
+                                                                        await (window as any).electron.invoke('move-set', {
+                                                                            setId: set.id,
+                                                                            targetParentId: null
+                                                                        });
+                                                                        loadCreatorDetails(selectedCreatorId!);
+                                                                    }}
+                                                                    className="p-2 hover:bg-white/10 rounded-lg text-slate-500 hover:text-brand-secondary transition-colors"
+                                                                    title="Move to root"
+                                                                >
+                                                                    <ArrowUp size={16} />
+                                                                </button>
+                                                            )}
+                                                            <button onClick={() => startEditingSet(set)} className="p-2 hover:bg-white/10 rounded-lg text-slate-500 hover:text-brand-primary transition-colors">
+                                                                <Edit2 size={16} />
+                                                            </button>
+                                                            <button onClick={() => handleDeleteSet(set.id)} className="p-2 hover:bg-white/10 rounded-lg text-slate-500 hover:text-red-400 transition-colors">
+                                                                <Trash2 size={16} />
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
 
-                                            {editingSetId === set.id ? (
-                                                <div className="flex-grow flex gap-2" onClick={e => e.stopPropagation()}>
-                                                    <input
-                                                        autoFocus
-                                                        className="bg-black/40 border border-brand-primary/50 rounded-lg px-3 py-1.5 text-sm text-white w-full outline-none caret-brand-primary shadow-inner"
-                                                        value={editSetForm.name}
-                                                        onChange={e => setEditSetForm({ ...editSetForm, name: e.target.value })}
-                                                        onClick={e => e.stopPropagation()}
-                                                        onKeyDown={e => {
-                                                            if (e.key === 'Enter') handleUpdateSet(set.id);
-                                                            e.stopPropagation();
-                                                        }}
-                                                    />
-                                                </div>
-                                            ) : (
-                                                <div className="flex-grow min-w-0 pr-20 select-text">
-                                                    <div className="font-semibold text-slate-200 flex flex-wrap items-center gap-2 break-all leading-snug" title={set.name}>
-                                                        {set.name}
-                                                    </div>
-                                                    <div className="text-xs text-slate-500 flex gap-4 mt-1.5">
-                                                        <span>{set.items.length} items</span>
-                                                        {(set.patreonUrl || set.websiteUrl || set.extraLinks) && (
-                                                            <div className="flex gap-1 shrink-0">
-                                                                {set.patreonUrl && <a href={set.patreonUrl} target="_blank" onClick={e => e.stopPropagation()} className="p-1 hover:bg-white/10 rounded-md text-slate-400 hover:text-[#FF424D] transition-colors" title="Patreon"><ExternalLink size={12} /></a>}
-                                                                {set.websiteUrl && <a href={set.websiteUrl} target="_blank" onClick={e => e.stopPropagation()} className="p-1 hover:bg-white/10 rounded-md text-slate-400 hover:text-blue-400 transition-colors" title="Website"><Globe size={12} /></a>}
-                                                                {(() => {
-                                                                    try {
-                                                                        const extra = set.extraLinks ? JSON.parse(set.extraLinks) : [];
-                                                                        return extra.map((l: any, i: number) => (
-                                                                            <a key={i} href={l.url} target="_blank" onClick={e => e.stopPropagation()} className="p-1 hover:bg-white/10 rounded-md text-slate-400 hover:text-green-400 transition-colors" title={l.type}><Link2 size={12} /></a>
-                                                                        ));
-                                                                    } catch { return null; }
-                                                                })()}
+                                            {/* Set Edit Panel (Links) */}
+                                            {editingSetId === set.id && (
+                                                <div className="px-4 pb-4 pl-14 space-y-3 bg-black/20 pt-2 animate-in slide-in-from-top-1">
+                                                    {editSetForm.links.map((link, idx) => (
+                                                        <div key={idx} className="flex items-center gap-2">
+                                                            <div className="relative shrink-0 w-24">
+                                                                <select
+                                                                    className="w-full bg-black/20 border border-white/5 rounded-lg px-2 py-2 text-xs text-slate-300 outline-none appearance-none"
+                                                                    value={link.type}
+                                                                    onChange={e => {
+                                                                        const newLinks = [...editSetForm.links];
+                                                                        newLinks[idx].type = e.target.value;
+                                                                        setEditSetForm({ ...editSetForm, links: newLinks });
+                                                                    }}
+                                                                >
+                                                                    <option value="patreon">Patreon</option>
+                                                                    <option value="website">Website</option>
+                                                                    <option value="tumblr">Tumblr</option>
+                                                                    <option value="curseforge">CurseForge</option>
+                                                                    <option value="other">Other</option>
+                                                                </select>
                                                             </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <div className="absolute right-4 top-1/2 -translate-y-1/2 flex gap-2">
-                                            {editingSetId === set.id ? (
-                                                <div className="flex gap-2 animate-in fade-in bg-black/60 backdrop-blur-sm p-1 rounded-lg border border-white/10">
-                                                    <button onClick={() => handleUpdateSet(set.id)} className="p-2 bg-green-500/10 text-green-400 rounded-lg hover:bg-green-500/20 border border-green-500/20 transition-colors"><Check size={16} /></button>
-                                                    <button onClick={() => setEditingSetId(null)} className="p-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 border border-red-500/20 transition-colors"><X size={16} /></button>
-                                                </div>
-                                            ) : (
-                                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0 bg-black/60 backdrop-blur-sm p-1 rounded-lg border border-white/10 shadow-xl">
-                                                    <button onClick={() => startEditingSet(set)} className="p-2 hover:bg-white/10 rounded-lg text-slate-500 hover:text-brand-primary transition-colors">
-                                                        <Edit2 size={16} />
-                                                    </button>
-                                                    <button onClick={() => handleDeleteSet(set.id)} className="p-2 hover:bg-white/10 rounded-lg text-slate-500 hover:text-red-400 transition-colors">
-                                                        <Trash2 size={16} />
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Set Edit Panel (Links) */}
-                                    {editingSetId === set.id && (
-                                        <div className="px-4 pb-4 pl-14 space-y-3 bg-black/20 pt-2 animate-in slide-in-from-top-1">
-                                            {editSetForm.links.map((link, idx) => (
-                                                <div key={idx} className="flex items-center gap-2">
-                                                    <div className="relative shrink-0 w-24">
-                                                        <select
-                                                            className="w-full bg-black/20 border border-white/5 rounded-lg px-2 py-2 text-xs text-slate-300 outline-none appearance-none"
-                                                            value={link.type}
-                                                            onChange={e => {
-                                                                const newLinks = [...editSetForm.links];
-                                                                newLinks[idx].type = e.target.value;
-                                                                setEditSetForm({ ...editSetForm, links: newLinks });
-                                                            }}
-                                                        >
-                                                            <option value="patreon">Patreon</option>
-                                                            <option value="website">Website</option>
-                                                            <option value="tumblr">Tumblr</option>
-                                                            <option value="curseforge">CurseForge</option>
-                                                            <option value="other">Other</option>
-                                                        </select>
-                                                    </div>
-                                                    <div className="flex-grow flex items-center gap-2 p-2 rounded-lg bg-black/20 border border-white/5 focus-within:border-brand-primary/30 transition-colors">
-                                                        <input
-                                                            className="bg-transparent border-none outline-none text-xs w-full text-slate-300 placeholder-slate-600"
-                                                            placeholder="URL"
-                                                            value={link.url}
-                                                            onChange={e => {
-                                                                const newLinks = [...editSetForm.links];
-                                                                newLinks[idx].url = e.target.value;
-                                                                setEditSetForm({ ...editSetForm, links: newLinks });
-                                                            }}
-                                                        />
-                                                    </div>
+                                                            <div className="flex-grow flex items-center gap-2 p-2 rounded-lg bg-black/20 border border-white/5 focus-within:border-brand-primary/30 transition-colors">
+                                                                <input
+                                                                    className="bg-transparent border-none outline-none text-xs w-full text-slate-300 placeholder-slate-600"
+                                                                    placeholder="URL"
+                                                                    value={link.url}
+                                                                    onChange={e => {
+                                                                        const newLinks = [...editSetForm.links];
+                                                                        newLinks[idx].url = e.target.value;
+                                                                        setEditSetForm({ ...editSetForm, links: newLinks });
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                            <button
+                                                                onClick={() => {
+                                                                    const newLinks = editSetForm.links.filter((_, i) => i !== idx);
+                                                                    setEditSetForm({ ...editSetForm, links: newLinks });
+                                                                }}
+                                                                className="p-2 hover:bg-white/10 rounded-lg text-slate-600 hover:text-red-400 transition-colors"
+                                                            >
+                                                                <X size={14} />
+                                                            </button>
+                                                        </div>
+                                                    ))}
                                                     <button
-                                                        onClick={() => {
-                                                            const newLinks = editSetForm.links.filter((_, i) => i !== idx);
-                                                            setEditSetForm({ ...editSetForm, links: newLinks });
-                                                        }}
-                                                        className="p-2 hover:bg-red-500/20 text-slate-500 hover:text-red-400 rounded-lg transition-colors"
+                                                        onClick={() => setEditSetForm({ ...editSetForm, links: [...editSetForm.links, { type: 'other', url: '' }] })}
+                                                        className="text-xs flex items-center gap-2 text-brand-secondary hover:text-white px-2 py-1 hover:bg-white/5 rounded-lg transition-colors"
                                                     >
-                                                        <X size={14} />
+                                                        <FolderPlus size={12} /> Add Link
                                                     </button>
                                                 </div>
-                                            ))}
-                                            <button
-                                                onClick={() => setEditSetForm({ ...editSetForm, links: [...editSetForm.links, { type: 'other', url: '' }] })}
-                                                className="text-xs flex items-center gap-2 text-brand-secondary hover:text-white px-2 py-1 hover:bg-white/5 rounded-lg transition-colors"
-                                            >
-                                                <FolderPlus size={12} /> Add Link
-                                            </button>
-                                        </div>
-                                    )}
+                                            )}
 
-                                    {/* Items List (Collapsible) */}
-                                    {expandedSets.has(set.id) && (
-                                        <div className="border-t border-white/5 bg-black/20 min-h-[40px] shadow-inner">
-                                            {set.items.map(item => (
-                                                <div
-                                                    key={item.id}
-                                                    className={`px-4 py-2.5 flex items-center gap-3 text-sm transition-all cursor-grab active:cursor-grabbing border-l-[3px] select-none group/item ${selectedItems.has(item.id)
-                                                        ? 'border-brand-primary bg-brand-primary/10 text-white'
-                                                        : 'border-transparent text-slate-400 hover:bg-white/5 hover:text-slate-200'
-                                                        }`}
-                                                    onClick={(e) => toggleItemSelection(item.id, e.ctrlKey || e.shiftKey)}
-                                                    draggable
-                                                    onDragStart={(e) => handleDragStart(e, item.id)}
-                                                >
-                                                    <GripVertical size={14} className="text-slate-600 opacity-0 group-hover/item:opacity-100 transition-opacity cursor-grab active:cursor-grabbing" />
-                                                    <div className={`w-3.5 h-3.5 rounded flex items-center justify-center border transition-all ${selectedItems.has(item.id) ? 'bg-brand-primary border-brand-primary' : 'border-slate-600 bg-transparent'}`}>
-                                                        {selectedItems.has(item.id) && <Check size={10} className="text-white" />}
-                                                    </div>
-                                                    <FileIcon size={14} className={selectedItems.has(item.id) ? 'text-brand-secondary' : 'text-slate-600 group-hover/item:text-slate-400 transition-colors'} />
-                                                    <span className="truncate font-mono text-xs opacity-90">{item.fileName}</span>
-                                                </div>
-                                            ))}
-                                            {set.items.length === 0 && (
-                                                <div className="px-10 py-6 text-xs text-slate-500 italic border-2 border-dashed border-white/5 m-4 rounded-xl text-center bg-white/[0.01]">
-                                                    Drag items here to organize
+                                            {/* Items List (Collapsible) */}
+                                            {expandedSets.has(set.id) && (
+                                                <div className="border-t border-white/5 bg-black/20 min-h-[40px] shadow-inner">
+                                                    {set.items.map(item => (
+                                                        <div
+                                                            key={item.id}
+                                                            className={`px-4 py-2.5 flex items-center gap-3 text-sm transition-all cursor-grab active:cursor-grabbing border-l-[3px] select-none group/item ${selectedItems.has(item.id)
+                                                                ? 'border-brand-primary bg-brand-primary/10 text-white'
+                                                                : 'border-transparent text-slate-400 hover:bg-white/5 hover:text-slate-200'
+                                                                }`}
+                                                            onClick={(e) => toggleItemSelection(item.id, e.ctrlKey || e.shiftKey)}
+                                                            draggable
+                                                            onDragStart={(e) => handleDragStart(e, item.id)}
+                                                        >
+                                                            <GripVertical size={14} className="text-slate-600 opacity-0 group-hover/item:opacity-100 transition-opacity cursor-grab active:cursor-grabbing" />
+                                                            <div className={`w-3.5 h-3.5 rounded flex items-center justify-center border transition-all ${selectedItems.has(item.id) ? 'bg-brand-primary border-brand-primary' : 'border-slate-600 bg-transparent'}`}>
+                                                                {selectedItems.has(item.id) && <Check size={10} className="text-white" />}
+                                                            </div>
+                                                            <FileIcon size={14} className={selectedItems.has(item.id) ? 'text-brand-secondary' : 'text-slate-600 group-hover/item:text-slate-400 transition-colors'} />
+                                                            <span className="truncate font-mono text-xs opacity-90">{item.fileName}</span>
+                                                        </div>
+                                                    ))}
+                                                    {set.items.length === 0 && (
+                                                        <div className="px-10 py-6 text-xs text-slate-500 italic border-2 border-dashed border-white/5 m-4 rounded-xl text-center bg-white/[0.01]">
+                                                            Drag items here to organize
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
-                                    )}
-                                </div>
-                            ))}
+                                        {/* Recursive Children */}
+                                        {expandedSets.has(set.id) && set.children.map(child => renderSet(child, level + 1))}
+                                    </div>
+                                );
+
+                                const tree = buildTree(creatorDetails.sets);
+                                return tree.map(set => renderSet(set, 0));
+                            })()}
                         </div>
                     </>
                 ) : (
