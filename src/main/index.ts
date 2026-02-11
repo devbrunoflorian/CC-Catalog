@@ -384,118 +384,144 @@ ipcMain.handle('import-csv', async () => {
 
     const fs = await import('fs/promises');
     const content = await fs.readFile(filePaths[0], 'utf-8');
-    const lines = content.split(/\r?\n/);
+
+    // Robust CSV Parsing
+    const rows: string[][] = [];
+    let currentRow: string[] = [];
+    let currentVal = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < content.length; i++) {
+        const char = content[i];
+        const nextChar = content[i + 1];
+
+        if (inQuotes) {
+            if (char === '"') {
+                if (nextChar === '"') {
+                    currentVal += '"';
+                    i++; // Skip escaped quote
+                } else {
+                    inQuotes = false;
+                }
+            } else {
+                currentVal += char;
+            }
+        } else {
+            if (char === '"') {
+                inQuotes = true;
+            } else if (char === ',') {
+                currentRow.push(currentVal);
+                currentVal = '';
+            } else if (char === '\n' || char === '\r') {
+                if (char === '\r' && nextChar === '\n') i++; // Skip \n in \r\n
+                currentRow.push(currentVal);
+                if (currentRow.length > 0 && (currentRow.length > 1 || currentRow[0] !== '')) {
+                    rows.push(currentRow);
+                }
+                currentRow = [];
+                currentVal = '';
+            } else {
+                currentVal += char;
+            }
+        }
+    }
+    // Push last row if exists
+    if (currentVal || currentRow.length > 0) {
+        currentRow.push(currentVal);
+        rows.push(currentRow);
+    }
 
     const db = getDb();
     let updatedCount = 0;
 
-    // Simple CSV parser helper
-    const parseLine = (line: string) => {
-        const res = [];
-        let current = '';
-        let inQuotes = false;
-        for (let i = 0; i < line.length; i++) {
-            const char = line[i];
-            if (char === '"') {
-                if (inQuotes && line[i + 1] === '"') {
-                    current += '"';
-                    i++;
-                } else {
-                    inQuotes = !inQuotes;
-                }
-            } else if (char === ',' && !inQuotes) {
-                res.push(current);
-                current = '';
-            } else {
-                current += char;
-            }
+    // Skip header row if it looks like a header
+    let startIdx = 0;
+    if (rows.length > 0 && rows[0][0] === 'Creator Name') {
+        startIdx = 1;
+    }
+
+    for (let i = startIdx; i < rows.length; i++) {
+        const cols = rows[i];
+        // Ensure strictly 7 columns based on export format
+        if (cols.length < 7) {
+            console.warn(`[CSV Import] Skipping invalid row ${i}:`, cols);
+            continue;
         }
-        res.push(current);
-        return res;
-    };
 
-    // Skip header
-    for (let i = 1; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line) continue;
-
-        const cols = parseLine(line);
-        if (cols.length < 7) continue;
-
-        const [cName, cPat, cWeb, sName, sPat, sWeb, itemsStr] = cols;
+        // Clean up fields (trim spaces around but keep internal spaces)
+        let [cName, cPat, cWeb, sName, sPat, sWeb, itemsStr] = cols.map(c => c ? c.trim() : '');
 
         if (!cName || !sName) continue;
 
-        // 1. Process Creator
-        let creatorId: string;
-        let creator = db.select().from(creators).where(eq(creators.name, cName)).get();
+        try {
+            // 1. Process Creator
+            let creatorId: string;
+            let creator = db.select().from(creators).where(eq(creators.name, cName)).get();
 
-        if (!creator) {
-            creatorId = randomUUID();
-            db.insert(creators).values({
-                id: creatorId,
-                name: cName,
-                patreonUrl: cPat || null,
-                websiteUrl: cWeb || null,
-                updatedAt: sql`CURRENT_TIMESTAMP`
-            }).run();
-        } else {
-            creatorId = creator.id;
-            // Update links if provided and different
-            if (cPat || cWeb) {
-                db.update(creators).set({
-                    patreonUrl: cPat || creator.patreonUrl,
-                    websiteUrl: cWeb || creator.websiteUrl,
+            if (!creator) {
+                creatorId = randomUUID();
+                db.insert(creators).values({
+                    id: creatorId,
+                    name: cName,
+                    patreonUrl: cPat || null,
+                    websiteUrl: cWeb || null,
                     updatedAt: sql`CURRENT_TIMESTAMP`
-                }).where(eq(creators.id, creatorId)).run();
+                }).run();
+            } else {
+                creatorId = creator.id;
+                if (cPat || cWeb) {
+                    db.update(creators).set({
+                        patreonUrl: cPat || creator.patreonUrl,
+                        websiteUrl: cWeb || creator.websiteUrl,
+                        updatedAt: sql`CURRENT_TIMESTAMP`
+                    }).where(eq(creators.id, creatorId)).run();
+                }
             }
-        }
 
-        // 2. Process Set
-        let setId: string;
-        let set = db.select().from(ccSets).where(
-            sql`${ccSets.creatorId} = ${creatorId} AND ${ccSets.name} = ${sName}`
-        ).get();
+            // 2. Process Set
+            let setId: string;
+            let set = db.select().from(ccSets).where(
+                sql`${ccSets.creatorId} = ${creatorId} AND ${ccSets.name} = ${sName}`
+            ).get();
 
-        if (!set) {
-            setId = randomUUID();
-            db.insert(ccSets).values({
-                id: setId,
-                creatorId: creatorId,
-                name: sName,
-                patreonUrl: sPat || null,
-                websiteUrl: sWeb || null,
-                updatedAt: sql`CURRENT_TIMESTAMP`
-            }).run();
-        } else {
-            setId = set.id;
-            if (sPat || sWeb) {
-                db.update(ccSets).set({
-                    patreonUrl: sPat || set.patreonUrl,
-                    websiteUrl: sWeb || set.websiteUrl,
+            if (!set) {
+                setId = randomUUID();
+                db.insert(ccSets).values({
+                    id: setId,
+                    creatorId: creatorId,
+                    name: sName,
+                    patreonUrl: sPat || null,
+                    websiteUrl: sWeb || null,
                     updatedAt: sql`CURRENT_TIMESTAMP`
-                }).where(eq(ccSets.id, setId)).run();
+                }).run();
+            } else {
+                setId = set.id;
+                if (sPat || sWeb) {
+                    db.update(ccSets).set({
+                        patreonUrl: sPat || set.patreonUrl,
+                        websiteUrl: sWeb || set.websiteUrl,
+                        updatedAt: sql`CURRENT_TIMESTAMP`
+                    }).where(eq(ccSets.id, setId)).run();
+                }
             }
-        }
 
-        // 3. Process Items
-        if (itemsStr) {
-            const fileNames = itemsStr.split('|');
-            for (const fName of fileNames) {
-                const cleanName = fName.trim();
-                if (!cleanName) continue;
+            // 3. Process Items
+            if (itemsStr) {
+                const fileNames = itemsStr.split('|');
+                for (const fName of fileNames) {
+                    const cleanName = fName.trim();
+                    if (!cleanName) continue;
 
-                // Find item by name - if duplicate names exist, this might pick any, 
-                // but usually filenames are unique per scan context. 
-                // We'll update ALL items with this filename to be safe/thorough? 
-                // Or just the one not in a set? Assuming unique filenames for now.
-                db.update(ccItems)
-                    .set({ ccSetId: setId, updatedAt: sql`CURRENT_TIMESTAMP` })
-                    .where(eq(ccItems.fileName, cleanName))
-                    .run();
+                    db.update(ccItems)
+                        .set({ ccSetId: setId, updatedAt: sql`CURRENT_TIMESTAMP` })
+                        .where(eq(ccItems.fileName, cleanName))
+                        .run();
+                }
             }
+            updatedCount++;
+        } catch (err) {
+            console.error(`[CSV Import] Error processing row ${i}:`, err);
         }
-        updatedCount++;
     }
 
     saveDatabase();
