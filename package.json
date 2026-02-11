@@ -1,6 +1,6 @@
 {
   "name": "cccc",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "CC Catalog Application",
   "type": "module",
   "main": "dist-electron/main/index.js",

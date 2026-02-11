@@ -53,7 +53,11 @@ autoUpdater.on('download-progress', (progress) => {
 });
 
 autoUpdater.on('update-downloaded', (info) => {
-    win?.webContents.send('update-status', `Update v${info.version} downloaded! Will install on restart.`);
+    win?.webContents.send('update-status', `Update v${info.version} ready! Restarting to install...`);
+    // Give the user 2 seconds to see the message before restarting
+    setTimeout(() => {
+        autoUpdater.quitAndInstall();
+    }, 2000);
 });
 
 ipcMain.handle('check-for-updates', async () => {
