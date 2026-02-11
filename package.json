@@ -1,11 +1,11 @@
 {
   "name": "cccc",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "CC Catalog Application",
   "type": "module",
   "main": "dist-electron/main/index.js",
   "scripts": {
-    "predev": "node -e \"require('fs').mkdirSync('dist-electron/main', {recursive: true}); require('fs').copyFileSync('src/main/preload.cjs', 'dist-electron/main/preload.js');\"",
+    "predev": "node -e \"require('fs').mkdirSync('dist-electron/main', {recursive: true})\"",
     "dev": "npm run predev && vite",
     "build": "tsc && vite build",
     "preview": "vite preview",

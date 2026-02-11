@@ -57,7 +57,7 @@ const CreatorsView: React.FC = () => {
 
     // Creator Editing
     const [editingCreator, setEditingCreator] = useState(false);
-    const [creatorForm, setCreatorForm] = useState({ patreon_url: '', website_url: '' });
+    const [creatorForm, setCreatorForm] = useState({ name: '', patreon_url: '', website_url: '' });
 
     // Forms
     const [editSetForm, setEditSetForm] = useState<{ name: string; links: { type: string; url: string }[] }>({ name: '', links: [] });
@@ -97,6 +97,7 @@ const CreatorsView: React.FC = () => {
             const data = await (window as any).electron.invoke('get-creator-details', id);
             setCreatorDetails(data);
             setCreatorForm({
+                name: data.name,
                 patreon_url: data.patreon_url || '',
                 website_url: data.website_url || ''
             });
@@ -136,6 +137,31 @@ const CreatorsView: React.FC = () => {
             itemIds.forEach(id => newSelected.add(id));
         }
         setSelectedItems(newSelected);
+    };
+
+    const handleDeleteCreator = async () => {
+        if (!selectedCreatorId || !creatorDetails) return;
+
+        const setIds = creatorDetails.sets.map(s => s.id);
+        const hasSets = setIds.length > 0;
+        let deleteSets = false;
+
+        const message = hasSets
+            ? `This creator has ${setIds.length} sets. To delete the creator, you must also delete all their sets and items. This cannot be undone.\n\nAre you sure you want to delete ${creatorDetails.name}?`
+            : `Are you sure you want to delete ${creatorDetails.name}?`;
+
+        if (!confirm(message)) return;
+
+        if (hasSets) deleteSets = true;
+
+        try {
+            await (window as any).electron.invoke('delete-creator', { id: selectedCreatorId, deleteSets });
+            setSelectedCreatorId(null);
+            setCreatorDetails(null);
+            loadCreatorsList();
+        } catch (e: any) {
+            alert(e.message);
+        }
     };
 
     const handleCreateCreator = async () => {
@@ -545,6 +571,15 @@ const CreatorsView: React.FC = () => {
 
                                     {editingCreator ? (
                                         <div className="grid grid-cols-2 gap-4 max-w-2xl animate-in slide-in-from-top-2 bg-black/20 p-4 rounded-xl border border-white/10">
+                                            <div className="col-span-2 flex items-center gap-2 p-3 bg-black/20 rounded-lg border border-white/5 focus-within:border-brand-primary/50 transition-colors">
+                                                <span className="text-slate-500 text-xs font-bold uppercase tracking-wider shrink-0 w-16">Name</span>
+                                                <input
+                                                    className="bg-transparent border-none outline-none text-sm w-full text-slate-200 placeholder-slate-600 font-bold"
+                                                    placeholder="Creator Name"
+                                                    value={creatorForm.name}
+                                                    onChange={e => setCreatorForm({ ...creatorForm, name: e.target.value })}
+                                                />
+                                            </div>
                                             <div className="flex items-center gap-2 p-3 bg-black/20 rounded-lg border border-white/5 focus-within:border-brand-primary/50 transition-colors">
                                                 <ExternalLink size={14} className="text-slate-500 shrink-0" />
                                                 <input
@@ -563,12 +598,18 @@ const CreatorsView: React.FC = () => {
                                                     onChange={e => setCreatorForm({ ...creatorForm, website_url: e.target.value })}
                                                 />
                                             </div>
-                                            <div className="col-span-2 flex justify-end">
+                                            <div className="col-span-2 flex justify-between items-center mt-2">
+                                                <button
+                                                    onClick={handleDeleteCreator}
+                                                    className="text-red-400 text-xs hover:text-red-300 hover:bg-red-500/10 px-3 py-2 rounded-lg transition-colors flex items-center gap-2"
+                                                >
+                                                    <Trash2 size={14} /> Delete Creator
+                                                </button>
                                                 <button
                                                     onClick={handleUpdateCreator}
                                                     className="bg-brand-primary text-white text-xs font-bold px-6 py-2.5 rounded-lg hover:bg-brand-secondary transition-all shadow-lg shadow-brand-primary/20 hover:shadow-brand-primary/40 flex items-center gap-2"
                                                 >
-                                                    <Save size={14} /> Save Links
+                                                    <Save size={14} /> Save Changes
                                                 </button>
                                             </div>
                                         </div>

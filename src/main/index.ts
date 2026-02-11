@@ -72,6 +72,8 @@ ipcMain.handle('check-for-updates', async () => {
     }
 });
 
+ipcMain.handle('get-app-version', () => app.getVersion());
+
 ipcMain.handle('get-history', async () => {
     if (!dbInitialized) throw new Error('Database not initialized');
     const db = getDb();
@@ -247,6 +249,7 @@ ipcMain.handle('update-creator', async (_, { id, patreon_url, website_url }: any
         updatedAt: sql`CURRENT_TIMESTAMP`,
     };
 
+    if (name !== undefined) updateData.name = name;
     if (patreon_url !== undefined) updateData.patreonUrl = patreon_url;
     if (website_url !== undefined) updateData.websiteUrl = website_url;
 
@@ -280,6 +283,35 @@ ipcMain.handle('create-creator', async (_, { name, patreon_url, website_url }: a
 
     saveDatabase();
     return { id: newId, name };
+});
+
+ipcMain.handle('delete-creator', async (_, { id, deleteSets }) => {
+    if (!dbInitialized) throw new Error('Database not initialized');
+    const db = getDb();
+
+    // Check if empty
+    const result = db.select({ count: sql<number>`count(*)` }).from(ccSets).where(eq(ccSets.creatorId, id)).get();
+    const setsCount = result ? Number(result.count) : 0;
+
+    if (setsCount > 0 && !deleteSets) {
+        throw new Error('Cannot delete creator with existing sets. Delete sets first or confirm deletion.');
+    }
+
+    if (setsCount > 0 && deleteSets) {
+        // Delete items for all sets of this creator
+        const setsResult = db.select({ id: ccSets.id }).from(ccSets).where(eq(ccSets.creatorId, id)).all();
+
+        for (const set of setsResult) {
+            db.delete(ccItems).where(eq(ccItems.ccSetId, set.id)).run();
+        }
+
+        // Delete sets
+        db.delete(ccSets).where(eq(ccSets.creatorId, id)).run();
+    }
+
+    db.delete(creators).where(eq(creators.id, id)).run();
+    saveDatabase();
+    return { success: true };
 });
 
 
@@ -587,7 +619,7 @@ function createWindow() {
         show: false,
         icon: iconPath,
         webPreferences: {
-            preload: join(__dirname, 'preload.js'),
+            preload: join(__dirname, 'preload.cjs'),
             nodeIntegration: false,
             contextIsolation: true,
         },
@@ -627,7 +659,7 @@ function createSplashWindow() {
         frame: false,
         alwaysOnTop: true,
         webPreferences: {
-            preload: join(__dirname, 'preload.js'),
+            preload: join(__dirname, 'preload.cjs'),
             nodeIntegration: false,
             contextIsolation: true,
         },

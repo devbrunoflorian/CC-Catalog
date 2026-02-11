@@ -11,9 +11,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     const { themeColor, setThemeColor, opacity, setOpacity } = useTheme();
     const [updateStatus, setUpdateStatus] = React.useState<string | null>(null);
     const [updateProgress, setUpdateProgress] = React.useState<number>(0);
+    const [appVersion, setAppVersion] = React.useState<string>('');
 
     React.useEffect(() => {
         if (!isOpen) return;
+
+        (window as any).electron.invoke('get-app-version').then(setAppVersion);
 
         const handleStatus = (status: string) => setUpdateStatus(status);
         const handleProgress = (progress: number) => setUpdateProgress(progress);
@@ -162,7 +165,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                             </div>
 
                             <div className="pt-2 text-center">
-                                <span className="text-[10px] text-slate-600 font-mono uppercase tracking-tighter">Version 1.0.0 • Made with ❤️ for Simmers</span>
+                                <span className="text-[10px] text-slate-600 font-mono uppercase tracking-tighter">Version {appVersion || '...'} • Made with ❤️ for Simmers</span>
                             </div>
                         </div>
 

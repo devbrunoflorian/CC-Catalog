@@ -4,6 +4,7 @@ import electron from 'vite-plugin-electron';
 import renderer from 'vite-plugin-electron-renderer';
 import tailwindcss from '@tailwindcss/vite';
 import { resolve } from 'path';
+import { copyFileSync } from 'node:fs';
 
 export default defineConfig({
     plugins: [
@@ -23,6 +24,12 @@ export default defineConfig({
             },
         ]),
         renderer(),
+        {
+            name: 'copy-preload',
+            writeBundle() {
+                copyFileSync('src/main/preload.cjs', 'dist-electron/main/preload.cjs');
+            }
+        }
     ],
     resolve: {
         alias: {
