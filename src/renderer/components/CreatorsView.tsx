@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, ExternalLink, Link2, Globe, FolderPlus, Trash2, Edit2, File as FileIcon, ChevronRight, ChevronDown, Check, X, GripVertical, Save, ArrowUp, SortAsc, SortDesc, ListFilter, Move } from 'lucide-react';
+import { Search, ExternalLink, Link2, Globe, FolderPlus, Trash2, Edit2, File as FileIcon, ChevronRight, ChevronDown, Check, X, GripVertical, Save, ArrowUp, SortAsc, SortDesc, ListFilter, Move, UserPlus } from 'lucide-react';
 
 interface Item {
     id: string;
@@ -64,6 +64,8 @@ const CreatorsView: React.FC = () => {
     const [newSetName, setNewSetName] = useState('');
     const [showNewSetInput, setShowNewSetInput] = useState(false);
     const [activeParentSetId, setActiveParentSetId] = useState<string | null>(null);
+    const [showNewCreatorInput, setShowNewCreatorInput] = useState(false);
+    const [newCreatorName, setNewCreatorName] = useState('');
 
     // Sorting State
     const [creatorSort, setCreatorSort] = useState<'az' | 'za' | 'items'>('az');
@@ -134,6 +136,21 @@ const CreatorsView: React.FC = () => {
             itemIds.forEach(id => newSelected.add(id));
         }
         setSelectedItems(newSelected);
+    };
+
+    const handleCreateCreator = async () => {
+        if (!newCreatorName.trim()) return;
+        try {
+            const result = await (window as any).electron.invoke('create-creator', {
+                name: newCreatorName
+            });
+            setNewCreatorName('');
+            setShowNewCreatorInput(false);
+            loadCreatorsList();
+            setSelectedCreatorId(result.id);
+        } catch (e: any) {
+            alert(e.message);
+        }
     };
 
     const handleCreateSet = async () => {
@@ -459,8 +476,33 @@ const CreatorsView: React.FC = () => {
                         {creatorSort === 'az' && <SortAsc size={18} />}
                         {creatorSort === 'za' && <SortDesc size={18} />}
                         {creatorSort === 'items' && <ListFilter size={18} />}
+                        {creatorSort === 'items' && <ListFilter size={18} />}
+                    </button>
+                    <button
+                        onClick={() => setShowNewCreatorInput(!showNewCreatorInput)}
+                        className={`p-3 border rounded-xl transition-all shadow-lg ${showNewCreatorInput ? 'bg-brand-primary text-white border-brand-primary' : 'bg-white/5 border-white/10 text-slate-400 hover:text-white hover:bg-white/10'}`}
+                        title="Add Creator"
+                    >
+                        <UserPlus size={18} />
                     </button>
                 </div>
+
+                {/* New Creator Input */}
+                {showNewCreatorInput && (
+                    <div className="mx-4 mb-2 p-3 bg-black/20 border border-brand-primary/30 rounded-xl animate-in slide-in-from-top-2 flex gap-2 backdrop-blur-md">
+                        <input
+                            autoFocus
+                            className="bg-transparent border-none outline-none text-sm flex-grow text-slate-200 placeholder-slate-500"
+                            placeholder="New creator name..."
+                            value={newCreatorName}
+                            onChange={e => setNewCreatorName(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && handleCreateCreator()}
+                        />
+                        <button onClick={handleCreateCreator} className="text-brand-primary hover:text-white transition-colors" title="Save">
+                            <Check size={18} />
+                        </button>
+                    </div>
+                )}
 
                 <div className="flex-grow overflow-y-auto custom-scrollbar space-y-2 pr-2">
                     {filteredCreators.map(creator => (

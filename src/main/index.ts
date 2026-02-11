@@ -255,6 +255,29 @@ ipcMain.handle('update-creator', async (_, { id, patreon_url, website_url }: any
     return { success: true };
 });
 
+ipcMain.handle('create-creator', async (_, { name, patreon_url, website_url }: any) => {
+    if (!dbInitialized) throw new Error('Database not initialized');
+    const db = getDb();
+
+    // Check if exists
+    const existing = db.select().from(creators).where(eq(creators.name, name)).get();
+    if (existing) {
+        throw new Error('Creator with this name already exists');
+    }
+
+    const newId = randomUUID();
+    db.insert(creators).values({
+        id: newId,
+        name,
+        patreonUrl: patreon_url || null,
+        websiteUrl: website_url || null,
+        updatedAt: sql`CURRENT_TIMESTAMP`
+    }).run();
+
+    saveDatabase();
+    return { id: newId, name };
+});
+
 
 
 ipcMain.handle('scan-zip', async () => {
