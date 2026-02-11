@@ -35,3 +35,6 @@ userData/
 
 # VS Code
 .vscode/
+
+# Release Guide
+RELEASE_GUIDE.md
