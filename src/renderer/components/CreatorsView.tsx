@@ -3,7 +3,7 @@ import {
     Search, Filter, Plus, Trash2, Edit2, ExternalLink, Globe,
     MoreVertical, X, Check, FolderPlus, File as FileIcon,
     ChevronRight, ChevronDown, GripVertical, ListFilter, SortAsc, SortDesc, ArrowRight, ArrowUpDown,
-    UserPlus, Save, Link2, ArrowUp, Move
+    UserPlus, Save, Link2, ArrowUp, Move, CheckCircle
 } from 'lucide-react';
 
 interface Item {
@@ -88,6 +88,7 @@ const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger }) => {
 
     const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
     const [lastSelectedItemId, setLastSelectedItemId] = useState<string | null>(null);
+    const [selectionAnchor, setSelectionAnchor] = useState<string | null>(null);
     const [editingSetId, setEditingSetId] = useState<string | null>(null);
 
     // Creator Editing
@@ -198,6 +199,29 @@ const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger }) => {
                             )}
                             <div className={`p-1.5 rounded-lg transition-colors ${expandedSets.has(set.id) ? 'bg-white/10 text-white' : 'text-slate-500 group-hover:bg-white/5 group-hover:text-slate-300'}`}>
                                 {expandedSets.has(set.id) ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                            </div>
+
+                            {/* Set Selection Checkbox */}
+                            <div
+                                className={`w-4 h-4 rounded flex items-center justify-center border transition-all cursor-pointer hover:border-brand-primary/60 shrink-0 ${(() => {
+                                    const itemIds = (set.items || []).map(i => i.id);
+                                    const anySelected = itemIds.some(id => selectedItems.has(id));
+                                    const allSelected = itemIds.length > 0 && itemIds.every(id => selectedItems.has(id));
+                                    return allSelected ? 'bg-brand-primary border-brand-primary' : anySelected ? 'border-brand-primary bg-brand-primary/20' : 'border-slate-600 bg-black/20';
+                                })()}`}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleSetSelection(set, selectedItems);
+                                }}
+                            >
+                                {(() => {
+                                    const itemIds = (set.items || []).map(i => i.id);
+                                    const allSelected = itemIds.length > 0 && itemIds.every(id => selectedItems.has(id));
+                                    const anySelected = itemIds.some(id => selectedItems.has(id));
+                                    if (allSelected) return <Check size={11} className="text-white" />;
+                                    if (anySelected) return <div className="w-2 h-0.5 bg-brand-primary" />;
+                                    return null;
+                                })()}
                             </div>
 
                             {editingSetId === set.id ? (
@@ -426,6 +450,9 @@ const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger }) => {
     useEffect(() => {
         if (selectedCreatorId) {
             loadCreatorDetails(selectedCreatorId);
+            setSelectedItems(new Set());
+            setSelectionAnchor(null);
+            setLastSelectedItemId(null);
         }
     }, [selectedCreatorId, refreshTrigger]);
 
@@ -460,42 +487,63 @@ const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger }) => {
     };
 
     const toggleItemSelection = (itemId: string, multiSelect: boolean, rangeSelect: boolean, context: any[] = allVisibleItems) => {
-        let newSelected = new Set(multiSelect || rangeSelect ? selectedItems : []);
+        let newSelected = new Set<string>();
 
-        if (rangeSelect && lastSelectedItemId && context) {
-            const lastIdx = context.findIndex(i => i.id === lastSelectedItemId);
+        if (rangeSelect && selectionAnchor && context) {
+            const anchorIdx = context.findIndex(i => i.id === selectionAnchor);
             const currentIdx = context.findIndex(i => i.id === itemId);
 
-            if (lastIdx !== -1 && currentIdx !== -1) {
-                const start = Math.min(lastIdx, currentIdx);
-                const end = Math.max(lastIdx, currentIdx);
+            if (anchorIdx !== -1 && currentIdx !== -1) {
+                // Perfect range selection
+                // If it's a Ctrl+Shift click, we append to existing. If just Shift, we start from anchor.
+                if (multiSelect && !rangeSelect) { /* This shouldn't happen with current onClick */ }
+
+                // In standard behavior, Shift-click maintains other selections if Ctrl was also held
+                // otherwise it usually starts fresh or adds to current.
+                // We'll follow the most common pattern: 
+                // 1. If multiSelect (Ctrl/Cmd) is held, we start with current selections.
+                // 2. We ADD the range between anchor and current.
+                newSelected = new Set(multiSelect ? selectedItems : []);
+
+                const start = Math.min(anchorIdx, currentIdx);
+                const end = Math.max(anchorIdx, currentIdx);
                 const range = context.slice(start, end + 1);
                 range.forEach(i => newSelected.add(i.id));
             } else {
-                newSelected.add(itemId);
-                setLastSelectedItemId(itemId);
+                // Fallback to single or toggle
+                newSelected = new Set(multiSelect ? selectedItems : []);
+                if (newSelected.has(itemId)) newSelected.delete(itemId);
+                else newSelected.add(itemId);
+                setSelectionAnchor(itemId);
             }
         } else {
+            // Normal click or toggle
             if (multiSelect) {
+                newSelected = new Set(selectedItems);
                 if (newSelected.has(itemId)) newSelected.delete(itemId);
                 else newSelected.add(itemId);
             } else {
-                newSelected.add(itemId);
+                newSelected = new Set([itemId]);
             }
-            setLastSelectedItemId(itemId);
+            // Always set anchor on a fresh non-range click
+            setSelectionAnchor(itemId);
         }
+
         setSelectedItems(newSelected);
+        setLastSelectedItemId(itemId);
     };
 
     const toggleSetSelection = (set: CreatorSet, currentSelected: Set<string>) => {
-        const itemIds = set.items.map(i => i.id);
-        const allSelected = itemIds.every(id => currentSelected.has(id));
+        const itemIds = (set.items || []).map(i => i.id);
+        const allSelected = itemIds.length > 0 && itemIds.every(id => currentSelected.has(id));
 
         const newSelected = new Set(currentSelected);
         if (allSelected) {
             itemIds.forEach(id => newSelected.delete(id));
         } else {
             itemIds.forEach(id => newSelected.add(id));
+            // Set anchor to the first item of the set if we just selected it
+            if (itemIds.length > 0) setSelectionAnchor(itemIds[0]);
         }
         setSelectedItems(newSelected);
     };
@@ -1015,6 +1063,18 @@ const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger }) => {
                                 </div>
                                 <div className="flex gap-2">
                                     <div className="flex bg-white/5 border border-white/10 rounded-lg p-0.5 shrink-0">
+                                        <button
+                                            onClick={() => {
+                                                const allIds = new Set<string>();
+                                                creatorDetails?.sets.forEach(s => s.items.forEach(i => allIds.add(i.id)));
+                                                setSelectedItems(allIds);
+                                            }}
+                                            className="p-1 px-2 rounded-md text-[10px] font-bold transition-all flex items-center gap-1.5 hover:bg-white/5 text-slate-400"
+                                            title="Select all items of this creator"
+                                        >
+                                            <CheckCircle size={12} /> Select All
+                                        </button>
+                                        <div className="w-px bg-white/10 my-1 mx-1" />
                                         <button
                                             onClick={() => setSetSort(prev => prev === 'custom' ? 'az' : prev === 'az' ? 'za' : prev === 'za' ? 'items' : 'custom')}
                                             className="p-1 px-2 rounded-md text-[10px] font-bold transition-all flex items-center gap-1.5 hover:bg-white/5 text-slate-400"
