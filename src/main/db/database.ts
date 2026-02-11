@@ -36,8 +36,24 @@ export async function initDatabase() {
     const buffer = readFileSync(dbPath);
     sqlJsDb = new SQL.Database(buffer);
   } else {
-    console.log('Creating new database at:', dbPath);
-    sqlJsDb = new SQL.Database();
+    // Check for bundled database in resources
+    // In production: resources/sims-cc.db
+    // In dev: public/sims-cc.db or similar
+    const bundledDbPath = app.isPackaged
+      ? join(process.resourcesPath, 'sims-cc.db')
+      : join(__dirname, '../../public/sims-cc.db'); // Adjust dev path as needed
+
+    console.log('Checking for bundled database at:', bundledDbPath);
+
+    if (existsSync(bundledDbPath)) {
+      console.log('Found bundled database, copying to userData...');
+      const buffer = readFileSync(bundledDbPath);
+      writeFileSync(dbPath, buffer);
+      sqlJsDb = new SQL.Database(buffer);
+    } else {
+      console.log('No bundled database found, creating new empty database at:', dbPath);
+      sqlJsDb = new SQL.Database();
+    }
   }
 
   // Create Drizzle instance

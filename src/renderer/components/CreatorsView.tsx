@@ -1,9 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { Search, ExternalLink, Link2, Globe, FolderPlus, Trash2, Edit2, File as FileIcon, ChevronRight, ChevronDown, Check, X, GripVertical, Save, ArrowUp, SortAsc, SortDesc, ListFilter, Move, UserPlus } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import {
+    Search, Filter, Plus, Trash2, Edit2, ExternalLink, Globe,
+    MoreVertical, X, Check, FolderPlus, File as FileIcon,
+    ChevronRight, ChevronDown, GripVertical, ListFilter, SortAsc, SortDesc, ArrowRight, ArrowUpDown,
+    UserPlus, Save, Link2, ArrowUp, Move
+} from 'lucide-react';
 
 interface Item {
     id: string;
     fileName: string;
+    extra_links?: string;
+    release_date?: string;
+    sort_order?: number;
     displayName?: string;
 }
 
@@ -14,6 +22,7 @@ interface CreatorSet {
     patreon_url?: string | null;
     website_url?: string | null;
     extra_links?: string | null;
+    sort_order?: number;
     items: Item[];
 }
 
@@ -31,7 +40,32 @@ interface CreatorSummary {
     sets: { itemsCount: number }[];
 }
 
-const CreatorsView: React.FC = () => {
+interface CreatorsViewProps {
+    refreshTrigger?: number;
+}
+
+// Helper function for array reordering
+const arrayMove = (arr: any[], oldIndex: number, newIndex: number) => {
+    if (newIndex >= arr.length) {
+        let k = newIndex - arr.length + 1;
+        while (k--) {
+            arr.push(undefined);
+        }
+    }
+    arr.splice(newIndex, 0, arr.splice(oldIndex, 1)[0]);
+    return arr;
+};
+
+const countTotalItems = (set: any, allSets: any[]): number => {
+    let count = set.items?.length || 0;
+    const children = allSets.filter(s => s.parent_id === set.id);
+    children.forEach(child => {
+        count += countTotalItems(child, allSets);
+    });
+    return count;
+};
+
+const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger }) => {
     const [creatorsList, setCreatorsList] = useState<CreatorSummary[]>([]);
     const [selectedCreatorId, setSelectedCreatorId] = useState<string | null>(null);
     const [creatorDetails, setCreatorDetails] = useState<CreatorDetails | null>(null);
@@ -53,6 +87,7 @@ const CreatorsView: React.FC = () => {
     }, [expandedSets]);
 
     const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+    const [lastSelectedItemId, setLastSelectedItemId] = useState<string | null>(null);
     const [editingSetId, setEditingSetId] = useState<string | null>(null);
 
     // Creator Editing
@@ -62,6 +97,8 @@ const CreatorsView: React.FC = () => {
     // Forms
     const [editSetForm, setEditSetForm] = useState<{ name: string; links: { type: string; url: string }[] }>({ name: '', links: [] });
     const [newSetName, setNewSetName] = useState('');
+    const [newSetPatreon, setNewSetPatreon] = useState('');
+    const [newSetWebsite, setNewSetWebsite] = useState('');
     const [showNewSetInput, setShowNewSetInput] = useState(false);
     const [activeParentSetId, setActiveParentSetId] = useState<string | null>(null);
     const [showNewCreatorInput, setShowNewCreatorInput] = useState(false);
@@ -69,22 +106,328 @@ const CreatorsView: React.FC = () => {
 
     // Sorting State
     const [creatorSort, setCreatorSort] = useState<'az' | 'za' | 'items'>('az');
-    const [setSort, setSetSort] = useState<'az' | 'za' | 'items'>('az');
+    const [setSort, setSetSort] = useState<'az' | 'za' | 'items' | 'custom'>('custom');
     const [itemSort, setItemSort] = useState<'az' | 'za'>('az');
 
     // Move to Set Modal State
     const [showMoveModal, setShowMoveModal] = useState(false);
     const [moveSearch, setMoveSearch] = useState('');
 
+    // Memoized sorted sets tree
+    const sortedSetsTree = useMemo(() => {
+        if (!creatorDetails) return [];
+        const sets = creatorDetails.sets;
+        const tree: (CreatorSet & { children: any[] })[] = [];
+        const map = new Map();
+        sets.forEach(s => map.set(s.id, { ...s, children: [] }));
+        sets.forEach(s => {
+            if (s.parent_id && map.has(s.parent_id)) {
+                map.get(s.parent_id).children.push(map.get(s.id));
+            } else {
+                tree.push(map.get(s.id));
+            }
+        });
+
+        const sortFn = (a: any, b: any) => {
+            if (setSort === 'custom') return (a.sort_order || 0) - (b.sort_order || 0);
+            if (setSort === 'az') return a.name.localeCompare(b.name);
+            if (setSort === 'za') return b.name.localeCompare(a.name);
+            if (setSort === 'items') return countTotalItems(b, sets) - countTotalItems(a, sets);
+            return 0;
+        };
+
+        const recursiveSort = (nodes: any[]) => {
+            nodes.sort(sortFn);
+            nodes.forEach(n => recursiveSort(n.children));
+        };
+
+        recursiveSort(tree);
+        return tree;
+    }, [creatorDetails, setSort]);
+
+    const renderSet = (set: CreatorSet & { children: any[] }, level: number) => {
+        const sortedItems = [...(set.items || [])].sort((a, b) => {
+            if (itemSort === 'az') return a.fileName.localeCompare(b.fileName);
+            if (itemSort === 'za') return b.fileName.localeCompare(a.fileName);
+            return 0;
+        });
+
+        return (
+            <div key={set.id} className={level > 0 ? 'ml-6 mt-3' : ''}>
+                <div
+                    id={`set-${set.id}`}
+                    className={`
+                    relative bg-white/[0.02] border rounded-xl overflow-hidden transition-all duration-300
+                    ${draggingSetId === set.id ? 'opacity-50 scale-95' : ''}
+                    ${dropTargetSetId === set.id && dropPosition === 'merge'
+                            ? 'border-brand-primary bg-brand-primary/20 shadow-[0_0_30px_hsl(var(--brand-primary)/0.2)] scale-[1.02]'
+                            : 'border-white/5 hover:bg-white/[0.04] hover:border-brand-primary/30'}
+                    ${dropTargetSetId === set.id && dropPosition === 'before' ? 'border-t-2 border-t-brand-primary pt-1' : ''}
+                    ${dropTargetSetId === set.id && dropPosition === 'after' ? 'border-b-2 border-b-brand-primary pb-1' : ''}
+                    ${editingSetId === set.id ? 'cursor-default opacity-100' : ''}
+                `}
+                    onDragOver={(e) => {
+                        if (editingSetId === set.id) return;
+                        handleSetDragOver(e, set.id)
+                    }}
+                    onDragLeave={handleSetDragLeave}
+                    onDrop={(e) => {
+                        if (editingSetId === set.id) return;
+                        handleDropWrapper(e, set.id);
+                    }}
+                >
+                    {/* Set Header */}
+                    <div className="py-3 px-4 flex items-center justify-between group">
+                        <div className="flex items-center gap-4 flex-grow cursor-pointer" onClick={() => toggleSetExpansion(set.id)}>
+                            {editingSetId !== set.id && (
+                                <div
+                                    draggable={true}
+                                    onDragStart={(e) => {
+                                        handleSetDragStart(e, set.id);
+                                        const container = document.getElementById(`set-${set.id}`);
+                                        if (container) {
+                                            e.dataTransfer.setDragImage(container, 0, 0);
+                                        }
+                                    }}
+                                    className="cursor-grab active:cursor-grabbing p-1.5 text-slate-600 hover:text-slate-400"
+                                    onClick={e => e.stopPropagation()}
+                                    onMouseDown={e => e.stopPropagation()}
+                                >
+                                    <GripVertical size={16} />
+                                </div>
+                            )}
+                            <div className={`p-1.5 rounded-lg transition-colors ${expandedSets.has(set.id) ? 'bg-white/10 text-white' : 'text-slate-500 group-hover:bg-white/5 group-hover:text-slate-300'}`}>
+                                {expandedSets.has(set.id) ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                            </div>
+
+                            {editingSetId === set.id ? (
+                                <div className="flex-grow flex gap-2" onClick={e => e.stopPropagation()}>
+                                    <input
+                                        autoFocus
+                                        className="bg-black/40 border border-brand-primary/50 rounded-lg px-3 py-1.5 text-sm text-white w-full outline-none caret-brand-primary shadow-inner"
+                                        value={editSetForm.name}
+                                        onChange={e => setEditSetForm({ ...editSetForm, name: e.target.value })}
+                                        onKeyDown={e => {
+                                            if (e.key === 'Enter') handleUpdateSet(set.id);
+                                            e.stopPropagation();
+                                        }}
+                                    />
+                                </div>
+                            ) : (
+                                <div className="flex-grow min-w-0 pr-32 select-text">
+                                    <div className="font-semibold text-slate-200 flex flex-wrap items-center gap-2 break-all leading-snug" title={set.name}>
+                                        {set.patreon_url || set.website_url ? (
+                                            <a
+                                                href={set.patreon_url || set.website_url || '#'}
+                                                target="_blank"
+                                                onClick={e => e.stopPropagation()}
+                                                className="hover:text-brand-primary hover:underline decoration-brand-primary/30 underline-offset-4 decoration-2 transition-all cursor-alias"
+                                            >
+                                                {set.name}
+                                            </a>
+                                        ) : (
+                                            set.name
+                                        )}
+                                    </div>
+                                    <div className="text-xs text-slate-500 flex gap-4 mt-1.5">
+                                        <span>{countTotalItems(set, creatorDetails!.sets)} items</span>
+                                        {(set.patreon_url || set.website_url || set.extra_links) && (
+                                            <div className="flex gap-1 shrink-0">
+                                                {set.patreon_url && <a href={set.patreon_url} target="_blank" onClick={e => e.stopPropagation()} className="p-1 hover:bg-white/10 rounded-md text-slate-400 hover:text-[#FF424D] transition-colors" title="Patreon"><ExternalLink size={12} /></a>}
+                                                {set.website_url && <a href={set.website_url} target="_blank" onClick={e => e.stopPropagation()} className="p-1 hover:bg-white/10 rounded-md text-slate-400 hover:text-blue-400 transition-colors" title="Website"><Globe size={12} /></a>}
+                                                {(() => {
+                                                    try {
+                                                        const extra = set.extra_links ? JSON.parse(set.extra_links) : [];
+                                                        return extra.map((l: any, i: number) => (
+                                                            <a key={i} href={l.url} target="_blank" onClick={e => e.stopPropagation()} className="p-1 hover:bg-white/10 rounded-md text-slate-400 hover:text-green-400 transition-colors" title={l.type}><Link2 size={12} /></a>
+                                                        ));
+                                                    } catch { return null; }
+                                                })()}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2 flex gap-2">
+                            {editingSetId === set.id ? (
+                                <div className="flex gap-2 animate-in fade-in bg-black/60 backdrop-blur-sm p-1 rounded-lg border border-white/10">
+                                    <button onClick={() => handleUpdateSet(set.id)} className="p-2 bg-green-500/10 text-green-400 rounded-lg hover:bg-green-500/20 border border-green-500/20 transition-colors"><Check size={16} /></button>
+                                    <button onClick={() => setEditingSetId(null)} className="p-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 border border-red-500/20 transition-colors"><X size={16} /></button>
+                                </div>
+                            ) : (
+                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0 bg-black/60 backdrop-blur-sm p-1 rounded-lg border border-white/10 shadow-xl">
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setEditingSetId(set.id);
+                                            setEditSetForm({
+                                                name: set.name,
+                                                links: [
+                                                    ...(set.patreon_url ? [{ type: 'patreon', url: set.patreon_url }] : []),
+                                                    ...(set.website_url ? [{ type: 'website', url: set.website_url }] : []),
+                                                    ...(() => {
+                                                        try {
+                                                            return set.extra_links ? JSON.parse(set.extra_links) : [];
+                                                        } catch { return []; }
+                                                    })()
+                                                ]
+                                            });
+                                        }}
+                                        className="p-1.5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-brand-primary transition-colors" title="Edit Set"
+                                    >
+                                        <Edit2 size={15} />
+                                    </button>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveParentSetId(set.id);
+                                            setShowNewSetInput(true);
+                                        }}
+                                        className="p-1.5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-brand-secondary transition-colors" title="Add Sub-set"
+                                    >
+                                        <FolderPlus size={15} />
+                                    </button>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDeleteSet(set.id);
+                                        }}
+                                        className="p-1.5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-red-400 transition-colors" title="Delete Set"
+                                    >
+                                        <Trash2 size={15} />
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Edit Form - Inline Links */}
+                    {editingSetId === set.id && (
+                        <div className="p-4 space-y-3 bg-brand-primary/5 border-t border-white/5 animate-in slide-in-from-top-1 duration-200">
+                            {editSetForm.links.map((link, idx) => (
+                                <div key={idx} className="flex gap-2 items-center animate-in fade-in slide-in-from-left-2" style={{ animationDelay: `${idx * 50}ms` }}>
+                                    <select
+                                        className="bg-black/40 border border-white/10 rounded-lg px-2 py-2 text-[10px] text-slate-400 outline-none focus:border-brand-primary/30"
+                                        value={link.type}
+                                        onChange={e => {
+                                            const newLinks = [...editSetForm.links];
+                                            newLinks[idx].type = e.target.value;
+                                            setEditSetForm({ ...editSetForm, links: newLinks });
+                                        }}
+                                    >
+                                        <option value="patreon">Patreon</option>
+                                        <option value="website">Website</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                    <div className="flex-grow flex items-center gap-2 p-2 rounded-lg bg-black/20 border border-white/5 focus-within:border-brand-primary/30 transition-colors">
+                                        <input
+                                            className="bg-transparent border-none outline-none text-xs w-full text-slate-300 placeholder-slate-600"
+                                            placeholder="URL"
+                                            value={link.url}
+                                            onChange={e => {
+                                                const newLinks = [...editSetForm.links];
+                                                newLinks[idx].url = e.target.value;
+                                                setEditSetForm({ ...editSetForm, links: newLinks });
+                                            }}
+                                        />
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            const newLinks = editSetForm.links.filter((_, i) => i !== idx);
+                                            setEditSetForm({ ...editSetForm, links: newLinks });
+                                        }}
+                                        className="p-2 hover:bg-white/10 rounded-lg text-slate-600 hover:text-red-400 transition-colors"
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                </div>
+                            ))}
+                            <button
+                                onClick={() => setEditSetForm({ ...editSetForm, links: [...editSetForm.links, { type: 'other', url: '' }] })}
+                                className="text-xs flex items-center gap-2 text-brand-secondary hover:text-white px-2 py-1 hover:bg-white/5 rounded-lg transition-colors"
+                            >
+                                <FolderPlus size={12} /> Add Link
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Set Expanded Context */}
+                    {expandedSets.has(set.id) && (
+                        <div className="bg-black/10 border-t border-white/5">
+                            {/* Items List (Collapsible) */}
+                            <div className="bg-black/20 min-h-[40px] shadow-inner">
+                                {sortedItems.map(item => (
+                                    <div
+                                        key={item.id}
+                                        className={`px-4 py-2.5 flex items-center gap-3 text-sm transition-all cursor-grab active:cursor-grabbing border-l-[3px] select-none group/item ${selectedItems.has(item.id)
+                                            ? 'border-brand-primary bg-brand-primary/10 text-white'
+                                            : 'border-transparent text-slate-400 hover:bg-white/5 hover:text-slate-200'
+                                            }`}
+                                        onClick={(e) => toggleItemSelection(item.id, e.ctrlKey || e.metaKey || e.shiftKey, e.shiftKey, allVisibleItems)}
+                                        draggable
+                                        onDragStart={(e) => handleDragStart(e, item.id)}
+                                    >
+                                        <GripVertical size={14} className="text-slate-600 opacity-0 group-hover/item:opacity-100 transition-opacity cursor-grab active:cursor-grabbing" />
+                                        <div
+                                            className={`w-4 h-4 rounded flex items-center justify-center border transition-all cursor-pointer hover:border-brand-primary/60 ${selectedItems.has(item.id) ? 'bg-brand-primary border-brand-primary' : 'border-slate-600 bg-black/20'}`}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                toggleItemSelection(item.id, true, false, allVisibleItems);
+                                            }}
+                                        >
+                                            {selectedItems.has(item.id) && <Check size={11} className="text-white" />}
+                                        </div>
+                                        <div className="flex flex-col gap-0.5">
+                                            <span className="font-medium truncate max-w-md">{item.fileName}</span>
+                                            {item.release_date && <span className="text-[10px] text-slate-500">Released: {item.release_date}</span>}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Recursive Children */}
+                            {set.children.map(child => renderSet(child, level + 1))}
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
+    // Flattened list of ONLY visible items in visual order
+    const allVisibleItems = useMemo(() => {
+        const list: any[] = [];
+        const process = (nodes: any[]) => {
+            nodes.forEach(node => {
+                // 1. Add items of this set (sorted) ONLY if expanded
+                if (expandedSets.has(node.id)) {
+                    const sortedItems = [...(node.items || [])].sort((a, b) => {
+                        if (itemSort === 'az') return a.fileName.localeCompare(b.fileName);
+                        if (itemSort === 'za') return b.fileName.localeCompare(a.fileName);
+                        return 0;
+                    });
+                    list.push(...sortedItems);
+
+                    // 2. Add children if expanded
+                    process(node.children);
+                }
+            });
+        };
+        process(sortedSetsTree);
+        return list;
+    }, [sortedSetsTree, expandedSets, itemSort]);
+
     useEffect(() => {
         loadCreatorsList();
-    }, []);
+    }, [refreshTrigger]);
 
     useEffect(() => {
         if (selectedCreatorId) {
             loadCreatorDetails(selectedCreatorId);
         }
-    }, [selectedCreatorId]);
+    }, [selectedCreatorId, refreshTrigger]);
 
     const loadCreatorsList = async () => {
         const data = await (window as any).electron.invoke('get-creators-list');
@@ -116,12 +459,30 @@ const CreatorsView: React.FC = () => {
         setExpandedSets(newExpanded);
     };
 
-    const toggleItemSelection = (itemId: string, multiSelect: boolean) => {
-        const newSelected = new Set(multiSelect ? selectedItems : []);
-        if (newSelected.has(itemId)) {
-            newSelected.delete(itemId);
+    const toggleItemSelection = (itemId: string, multiSelect: boolean, rangeSelect: boolean, context: any[] = allVisibleItems) => {
+        let newSelected = new Set(multiSelect || rangeSelect ? selectedItems : []);
+
+        if (rangeSelect && lastSelectedItemId && context) {
+            const lastIdx = context.findIndex(i => i.id === lastSelectedItemId);
+            const currentIdx = context.findIndex(i => i.id === itemId);
+
+            if (lastIdx !== -1 && currentIdx !== -1) {
+                const start = Math.min(lastIdx, currentIdx);
+                const end = Math.max(lastIdx, currentIdx);
+                const range = context.slice(start, end + 1);
+                range.forEach(i => newSelected.add(i.id));
+            } else {
+                newSelected.add(itemId);
+                setLastSelectedItemId(itemId);
+            }
         } else {
-            newSelected.add(itemId);
+            if (multiSelect) {
+                if (newSelected.has(itemId)) newSelected.delete(itemId);
+                else newSelected.add(itemId);
+            } else {
+                newSelected.add(itemId);
+            }
+            setLastSelectedItemId(itemId);
         }
         setSelectedItems(newSelected);
     };
@@ -184,9 +545,13 @@ const CreatorsView: React.FC = () => {
         await (window as any).electron.invoke('create-set', {
             creatorId: selectedCreatorId,
             name: newSetName,
-            parentId: activeParentSetId
+            parentId: activeParentSetId,
+            patreonUrl: newSetPatreon.trim() || null,
+            websiteUrl: newSetWebsite.trim() || null
         });
         setNewSetName('');
+        setNewSetPatreon('');
+        setNewSetWebsite('');
         setShowNewSetInput(false);
         setActiveParentSetId(null);
         loadCreatorDetails(selectedCreatorId);
@@ -264,6 +629,21 @@ const CreatorsView: React.FC = () => {
 
         setSelectedItems(new Set());
         loadCreatorDetails(selectedCreatorId!);
+    };
+
+    const handleDeleteSelectedItems = async () => {
+        if (selectedItems.size === 0) return;
+        if (!confirm(`Are you sure you want to delete ${selectedItems.size} selected items?`)) return;
+
+        try {
+            await (window as any).electron.invoke('delete-items', {
+                itemIds: Array.from(selectedItems)
+            });
+            setSelectedItems(new Set());
+            loadCreatorDetails(selectedCreatorId!);
+        } catch (e: any) {
+            alert(e.message);
+        }
     };
 
     const startEditingSet = (set: CreatorSet) => {
@@ -357,55 +737,59 @@ const CreatorsView: React.FC = () => {
             handleMoveItems(targetSetId, itemsToMove);
         } else if (draggingType.current === 'set') {
             const sourceSetId = draggingSetId;
-            if (!sourceSetId || sourceSetId === targetSetId) return;
-
-            if (dropPosition === 'merge') {
-                // Moving set into another (hierarchy)
-                await (window as any).electron.invoke('move-set', {
-                    setId: sourceSetId,
-                    targetParentId: targetSetId
-                });
-                loadCreatorDetails(selectedCreatorId!);
-            } else if (dropPosition === 'before' || dropPosition === 'after') {
-                // Reorder Logic
-                if (!creatorDetails) return;
-
-                const sets = [...creatorDetails.sets];
-                const sourceIndex = sets.findIndex(s => s.id === sourceSetId);
-                const targetIndex = sets.findIndex(s => s.id === targetSetId);
-
-                if (sourceIndex === -1 || targetIndex === -1) return;
-
-                // Remove source
-                const [movedSet] = sets.splice(sourceIndex, 1);
-
-                // Calculate insert index
-                // Note: if we removed an item before the target, the target index shifted down by 1
-                let insertIndex = targetIndex;
-                if (sourceIndex < targetIndex) insertIndex--; // Adjust because source was removed from before
-
-                if (dropPosition === 'after') insertIndex++;
-
-                sets.splice(insertIndex, 0, movedSet);
-
-                // Create update payload with new sort orders
-                const updates = sets.map((s, index) => ({
-                    id: s.id,
-                    sortOrder: index
-                }));
-
-                // Update locally immediately for responsiveness (optimistic UI could be improved but this is fast enough usually)
-                // Actually let's just wait for reload to avoid complex state sync
-                (window as any).electron.invoke('reorder-sets', { setsOrder: updates }).then(() => {
-                    loadCreatorDetails(selectedCreatorId!);
-                });
+            if (!sourceSetId || sourceSetId === targetSetId) {
+                setDraggingSetId(null);
+                setDropTargetSetId(null);
+                setDropPosition(null);
+                return;
             }
 
-            setDraggingSetId(null);
-            setDropTargetSetId(null);
-            setDropPosition(null);
+            if (dropPosition === 'merge') {
+                await (window as any).electron.invoke('merge-sets', {
+                    sourceSetId: draggingSetId,
+                    targetSetId: targetSetId
+                });
+                loadCreatorDetails(selectedCreatorId || '');
+            } else if ((dropPosition === 'before' || dropPosition === 'after') && setSort === 'custom') {
+                if (!creatorDetails) return;
+
+                // Sort sets by current sort_order to ensure we are moving in the visual list
+                const currentSets = [...creatorDetails.sets].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+
+                const sourceIndex = currentSets.findIndex(s => s.id === sourceSetId);
+                const targetIndex = currentSets.findIndex(s => s.id === targetSetId);
+
+                if (sourceIndex !== -1 && targetIndex !== -1) {
+                    const newSets = [...currentSets];
+                    const [moved] = newSets.splice(sourceIndex, 1);
+
+                    // Calculate insertion index
+                    let insertAt = targetIndex;
+                    if (sourceIndex < targetIndex) insertAt--;
+                    if (dropPosition === 'after') insertAt++;
+
+                    newSets.splice(insertAt, 0, moved);
+
+                    // Now map to sort orders
+                    const updates = newSets.map((s, index) => ({ id: s.id, sortOrder: index }));
+
+                    // Optimistic update
+                    setCreatorDetails({
+                        ...creatorDetails,
+                        sets: creatorDetails.sets.map(s => {
+                            const u = updates.find(up => up.id === s.id);
+                            return u ? { ...s, sort_order: u.sortOrder } : s;
+                        })
+                    });
+
+                    await (window as any).electron.invoke('update-set-order', updates);
+                }
+            }
         }
-        draggingType.current = null;
+
+        setDraggingSetId(null);
+        setDropTargetSetId(null);
+        setDropPosition(null);
     };
 
     // Auto-scroll logic
@@ -632,10 +1016,11 @@ const CreatorsView: React.FC = () => {
                                 <div className="flex gap-2">
                                     <div className="flex bg-white/5 border border-white/10 rounded-lg p-0.5 shrink-0">
                                         <button
-                                            onClick={() => setSetSort(prev => prev === 'az' ? 'za' : prev === 'za' ? 'items' : 'az')}
+                                            onClick={() => setSetSort(prev => prev === 'custom' ? 'az' : prev === 'az' ? 'za' : prev === 'za' ? 'items' : 'custom')}
                                             className="p-1 px-2 rounded-md text-[10px] font-bold transition-all flex items-center gap-1.5 hover:bg-white/5 text-slate-400"
                                             title={`Sort Sets: ${setSort.toUpperCase()}`}
                                         >
+                                            {setSort === 'custom' && <><ArrowUpDown size={12} /> Custom</>}
                                             {setSort === 'az' && <><SortAsc size={12} /> A-Z</>}
                                             {setSort === 'za' && <><SortDesc size={12} /> Z-A</>}
                                             {setSort === 'items' && <><ListFilter size={12} /> Size</>}
@@ -660,28 +1045,55 @@ const CreatorsView: React.FC = () => {
 
                             {/* New Set Input */}
                             {showNewSetInput && (
-                                <div className="mt-6 flex gap-2 animate-in slide-in-from-top-2 bg-black/40 p-1.5 rounded-lg border border-brand-primary/30 backdrop-blur-md absolute top-20 right-8 z-20 shadow-2xl">
-                                    <input
-                                        autoFocus
-                                        className="bg-transparent border-none rounded-lg px-3 py-2 text-sm w-64 text-slate-200 outline-none placeholder-slate-500"
-                                        placeholder={activeParentSetId ? "Sub-set Name..." : "Set Name (e.g. Kitchen, Berlin)"}
-                                        value={newSetName}
-                                        onChange={e => setNewSetName(e.target.value)}
-                                        onKeyDown={e => e.key === 'Enter' && handleCreateSet()}
-                                    />
-                                    <button onClick={handleCreateSet} className="bg-brand-primary px-3 rounded-lg text-white hover:bg-brand-secondary transition-colors" title="Create">
-                                        <Check size={18} />
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            setShowNewSetInput(false);
-                                            setActiveParentSetId(null);
-                                        }}
-                                        className="bg-white/5 px-3 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-white/10 transition-colors"
-                                        title="Cancel"
-                                    >
-                                        <X size={18} />
-                                    </button>
+                                <div className="mt-6 flex flex-col gap-2 animate-in slide-in-from-top-2 bg-black/60 p-4 rounded-xl border border-brand-primary/30 backdrop-blur-xl absolute top-20 right-8 z-20 shadow-2xl min-w-[320px]">
+                                    <div className="flex items-center gap-2 p-2 bg-black/40 rounded-lg border border-white/5 focus-within:border-brand-primary/50 transition-colors">
+                                        <FolderPlus size={16} className="text-slate-500 shrink-0" />
+                                        <input
+                                            autoFocus
+                                            className="bg-transparent border-none outline-none text-sm w-full text-slate-200 placeholder-slate-600"
+                                            placeholder={activeParentSetId ? "Sub-set Name..." : "Set Name (e.g. Kitchen, Berlin)"}
+                                            value={newSetName}
+                                            onChange={e => setNewSetName(e.target.value)}
+                                            onKeyDown={e => e.key === 'Enter' && handleCreateSet()}
+                                        />
+                                    </div>
+                                    <div className="flex items-center gap-2 p-2 bg-black/40 rounded-lg border border-white/5 focus-within:border-brand-primary/50 transition-colors">
+                                        <ExternalLink size={14} className="text-slate-500 shrink-0" />
+                                        <input
+                                            className="bg-transparent border-none outline-none text-xs w-full text-slate-200 placeholder-slate-600"
+                                            placeholder="Patreon URL (optional)"
+                                            value={newSetPatreon}
+                                            onChange={e => setNewSetPatreon(e.target.value)}
+                                            onKeyDown={e => e.key === 'Enter' && handleCreateSet()}
+                                        />
+                                    </div>
+                                    <div className="flex items-center gap-2 p-2 bg-black/40 rounded-lg border border-white/5 focus-within:border-brand-primary/50 transition-colors">
+                                        <Globe size={14} className="text-slate-500 shrink-0" />
+                                        <input
+                                            className="bg-transparent border-none outline-none text-xs w-full text-slate-200 placeholder-slate-600"
+                                            placeholder="Website URL (optional)"
+                                            value={newSetWebsite}
+                                            onChange={e => setNewSetWebsite(e.target.value)}
+                                            onKeyDown={e => e.key === 'Enter' && handleCreateSet()}
+                                        />
+                                    </div>
+                                    <div className="flex gap-2 mt-2">
+                                        <button onClick={handleCreateSet} className="flex-grow bg-brand-primary text-white py-2 rounded-lg hover:bg-brand-secondary transition-all font-bold text-xs shadow-lg shadow-brand-primary/20">
+                                            Create Set
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setShowNewSetInput(false);
+                                                setActiveParentSetId(null);
+                                                setNewSetName('');
+                                                setNewSetPatreon('');
+                                                setNewSetWebsite('');
+                                            }}
+                                            className="bg-white/5 px-4 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-white/10 transition-colors"
+                                        >
+                                            <X size={16} />
+                                        </button>
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -697,365 +1109,8 @@ const CreatorsView: React.FC = () => {
                                 }
                             }}
                         >
-                            {(() => {
-                                const buildTree = (sets: CreatorSet[]) => {
-                                    const tree: (CreatorSet & { children: any[] })[] = [];
-                                    const map = new Map();
-                                    sets.forEach(s => map.set(s.id, { ...s, children: [] }));
-                                    sets.forEach(s => {
-                                        if (s.parent_id && map.has(s.parent_id)) {
-                                            map.get(s.parent_id).children.push(map.get(s.id));
-                                        } else {
-                                            tree.push(map.get(s.id));
-                                        }
-                                    });
-                                    // Sort roots
-                                    return tree.sort((a, b) => {
-                                        if (setSort === 'az') return a.name.localeCompare(b.name);
-                                        if (setSort === 'za') return b.name.localeCompare(a.name);
-                                        if (setSort === 'items') return (b.items?.length || 0) - (a.items?.length || 0);
-                                        return 0;
-                                    });
-                                };
-
-                                const renderSet = (set: CreatorSet & { children: any[] }, level: number) => {
-                                    const sortedChildren = [...set.children].sort((a, b) => {
-                                        if (setSort === 'az') return a.name.localeCompare(b.name);
-                                        if (setSort === 'za') return b.name.localeCompare(a.name);
-                                        if (setSort === 'items') return (b.items?.length || 0) - (a.items?.length || 0);
-                                        return 0;
-                                    });
-
-                                    const sortedItems = [...(set.items || [])].sort((a, b) => {
-                                        if (itemSort === 'az') return a.fileName.localeCompare(b.fileName);
-                                        if (itemSort === 'za') return b.fileName.localeCompare(a.fileName);
-                                        return 0;
-                                    });
-
-                                    return (
-                                        <div key={set.id} className={level > 0 ? 'ml-6 mt-3' : ''}>
-                                            <div
-                                                draggable={editingSetId !== set.id}
-                                                onDragStart={(e) => handleSetDragStart(e, set.id)}
-                                                className={`
-                                                relative bg-white/[0.02] border rounded-xl overflow-hidden transition-all duration-300
-                                                ${draggingSetId === set.id ? 'opacity-50 scale-95' : ''}
-                                                ${dropTargetSetId === set.id && dropPosition === 'merge'
-                                                        ? 'border-brand-primary bg-brand-primary/20 shadow-[0_0_30px_hsl(var(--brand-primary)/0.2)] scale-[1.02]'
-                                                        : 'border-white/5 hover:bg-white/[0.04] hover:border-brand-primary/30'}
-                                                ${dropTargetSetId === set.id && dropPosition === 'before' ? 'border-t-2 border-t-brand-primary pt-1' : ''}
-                                                ${dropTargetSetId === set.id && dropPosition === 'after' ? 'border-b-2 border-b-brand-primary pb-1' : ''}
-                                                ${editingSetId === set.id ? 'cursor-default opacity-100' : ''}
-                                            `}
-                                                onDragOver={(e) => {
-                                                    if (editingSetId === set.id) return;
-                                                    handleSetDragOver(e, set.id)
-                                                }}
-                                                onDragLeave={handleSetDragLeave}
-                                                onDrop={(e) => {
-                                                    if (editingSetId === set.id) return;
-                                                    handleDropWrapper(e, set.id);
-                                                }}
-                                            >
-                                                {/* Set Header */}
-                                                <div className="py-3 px-4 flex items-center justify-between group">
-                                                    <div className="flex items-center gap-4 flex-grow cursor-pointer" onClick={() => toggleSetExpansion(set.id)}>
-                                                        {editingSetId !== set.id && (
-                                                            <div className="cursor-grab active:cursor-grabbing p-1.5 text-slate-600 hover:text-slate-400" onMouseDown={e => e.stopPropagation()}>
-                                                                <GripVertical size={16} />
-                                                            </div>
-                                                        )}
-                                                        <div className={`p-1.5 rounded-lg transition-colors ${expandedSets.has(set.id) ? 'bg-white/10 text-white' : 'text-slate-500 group-hover:bg-white/5 group-hover:text-slate-300'}`}>
-                                                            {expandedSets.has(set.id) ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-                                                        </div>
-
-                                                        {editingSetId === set.id ? (
-                                                            <div className="flex-grow flex gap-2" onClick={e => e.stopPropagation()}>
-                                                                <input
-                                                                    autoFocus
-                                                                    className="bg-black/40 border border-brand-primary/50 rounded-lg px-3 py-1.5 text-sm text-white w-full outline-none caret-brand-primary shadow-inner"
-                                                                    value={editSetForm.name}
-                                                                    onChange={e => setEditSetForm({ ...editSetForm, name: e.target.value })}
-                                                                    onKeyDown={e => {
-                                                                        if (e.key === 'Enter') handleUpdateSet(set.id);
-                                                                        e.stopPropagation();
-                                                                    }}
-                                                                />
-                                                            </div>
-                                                        ) : (
-                                                            <div className="flex-grow min-w-0 pr-32 select-text">
-                                                                <div className="font-semibold text-slate-200 flex flex-wrap items-center gap-2 break-all leading-snug" title={set.name}>
-                                                                    {set.patreon_url || set.website_url ? (
-                                                                        <a
-                                                                            href={(set.patreon_url || set.website_url) || undefined}
-                                                                            target="_blank"
-                                                                            onClick={e => e.stopPropagation()}
-                                                                            className="hover:text-brand-primary hover:underline decoration-brand-primary/30 underline-offset-4 decoration-2 transition-all cursor-alias"
-                                                                        >
-                                                                            {set.name}
-                                                                        </a>
-                                                                    ) : (
-                                                                        set.name
-                                                                    )}
-                                                                </div>
-                                                                <div className="text-xs text-slate-500 flex gap-4 mt-1.5">
-                                                                    <span>{set.items.length} items</span>
-                                                                    {(set.patreon_url || set.website_url || set.extra_links) && (
-                                                                        <div className="flex gap-1 shrink-0">
-                                                                            {set.patreon_url && <a href={set.patreon_url} target="_blank" onClick={e => e.stopPropagation()} className="p-1 hover:bg-white/10 rounded-md text-slate-400 hover:text-[#FF424D] transition-colors" title="Patreon"><ExternalLink size={12} /></a>}
-                                                                            {set.website_url && <a href={set.website_url} target="_blank" onClick={e => e.stopPropagation()} className="p-1 hover:bg-white/10 rounded-md text-slate-400 hover:text-blue-400 transition-colors" title="Website"><Globe size={12} /></a>}
-                                                                            {(() => {
-                                                                                try {
-                                                                                    const extra = set.extra_links ? JSON.parse(set.extra_links) : [];
-                                                                                    return extra.map((l: any, i: number) => (
-                                                                                        <a key={i} href={l.url} target="_blank" onClick={e => e.stopPropagation()} className="p-1 hover:bg-white/10 rounded-md text-slate-400 hover:text-green-400 transition-colors" title={l.type}><Link2 size={12} /></a>
-                                                                                    ));
-                                                                                } catch { return null; }
-                                                                            })()}
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                    </div>
-
-                                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 flex gap-2">
-                                                        {editingSetId === set.id ? (
-                                                            <div className="flex gap-2 animate-in fade-in bg-black/60 backdrop-blur-sm p-1 rounded-lg border border-white/10">
-                                                                <button onClick={() => handleUpdateSet(set.id)} className="p-2 bg-green-500/10 text-green-400 rounded-lg hover:bg-green-500/20 border border-green-500/20 transition-colors"><Check size={16} /></button>
-                                                                <button onClick={() => setEditingSetId(null)} className="p-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 border border-red-500/20 transition-colors"><X size={16} /></button>
-                                                            </div>
-                                                        ) : (
-                                                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0 bg-black/60 backdrop-blur-sm p-1 rounded-lg border border-white/10 shadow-xl">
-                                                                <button
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        toggleSetSelection(set, selectedItems);
-                                                                    }}
-                                                                    className={`p-2 rounded-lg border transition-all ${set.items.length > 0 && set.items.every(i => selectedItems.has(i.id))
-                                                                        ? 'bg-brand-primary/20 border-brand-primary/30 text-brand-secondary'
-                                                                        : 'hover:bg-white/10 border-transparent text-slate-500 hover:text-white'
-                                                                        }`}
-                                                                    title="Select all items in set"
-                                                                >
-                                                                    <Check size={16} />
-                                                                </button>
-                                                                <button
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        setActiveParentSetId(set.id);
-                                                                        setShowNewSetInput(true);
-                                                                    }}
-                                                                    className="p-2 hover:bg-white/10 rounded-lg text-slate-500 hover:text-green-400 transition-colors"
-                                                                    title="Add sub-set"
-                                                                >
-                                                                    <FolderPlus size={16} />
-                                                                </button>
-                                                                {set.parent_id && (
-                                                                    <button
-                                                                        onClick={async (e) => {
-                                                                            e.stopPropagation();
-                                                                            await (window as any).electron.invoke('move-set', {
-                                                                                setId: set.id,
-                                                                                targetParentId: null
-                                                                            });
-                                                                            loadCreatorDetails(selectedCreatorId!);
-                                                                        }}
-                                                                        className="p-2 hover:bg-white/10 rounded-lg text-slate-500 hover:text-brand-secondary transition-colors"
-                                                                        title="Move to root"
-                                                                    >
-                                                                        <ArrowUp size={16} />
-                                                                    </button>
-                                                                )}
-                                                                <button onClick={() => startEditingSet(set)} className="p-2 hover:bg-white/10 rounded-lg text-slate-500 hover:text-brand-primary transition-colors">
-                                                                    <Edit2 size={16} />
-                                                                </button>
-                                                                <button onClick={() => handleDeleteSet(set.id)} className="p-2 hover:bg-white/10 rounded-lg text-slate-500 hover:text-red-400 transition-colors">
-                                                                    <Trash2 size={16} />
-                                                                </button>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-
-                                                {/* Set Edit Panel (Links) */}
-                                                {editingSetId === set.id && (
-                                                    <div className="px-4 pb-4 pl-14 space-y-3 bg-black/20 pt-2 animate-in slide-in-from-top-1">
-                                                        {editSetForm.links.map((link, idx) => (
-                                                            <div key={idx} className="flex items-center gap-2">
-                                                                <div className="relative shrink-0 w-24">
-                                                                    <select
-                                                                        className="w-full bg-black/20 border border-white/5 rounded-lg px-2 py-2 text-xs text-slate-300 outline-none appearance-none"
-                                                                        value={link.type}
-                                                                        onChange={e => {
-                                                                            const newLinks = [...editSetForm.links];
-                                                                            newLinks[idx].type = e.target.value;
-                                                                            setEditSetForm({ ...editSetForm, links: newLinks });
-                                                                        }}
-                                                                    >
-                                                                        <option value="patreon">Patreon</option>
-                                                                        <option value="website">Website</option>
-                                                                        <option value="tumblr">Tumblr</option>
-                                                                        <option value="curseforge">CurseForge</option>
-                                                                        <option value="other">Other</option>
-                                                                    </select>
-                                                                </div>
-                                                                <div className="flex-grow flex items-center gap-2 p-2 rounded-lg bg-black/20 border border-white/5 focus-within:border-brand-primary/30 transition-colors">
-                                                                    <input
-                                                                        className="bg-transparent border-none outline-none text-xs w-full text-slate-300 placeholder-slate-600"
-                                                                        placeholder="URL"
-                                                                        value={link.url}
-                                                                        onChange={e => {
-                                                                            const newLinks = [...editSetForm.links];
-                                                                            newLinks[idx].url = e.target.value;
-                                                                            setEditSetForm({ ...editSetForm, links: newLinks });
-                                                                        }}
-                                                                    />
-                                                                </div>
-                                                                <button
-                                                                    onClick={() => {
-                                                                        const newLinks = editSetForm.links.filter((_, i) => i !== idx);
-                                                                        setEditSetForm({ ...editSetForm, links: newLinks });
-                                                                    }}
-                                                                    className="p-2 hover:bg-white/10 rounded-lg text-slate-600 hover:text-red-400 transition-colors"
-                                                                >
-                                                                    <X size={14} />
-                                                                </button>
-                                                            </div>
-                                                        ))}
-                                                        <button
-                                                            onClick={() => setEditSetForm({ ...editSetForm, links: [...editSetForm.links, { type: 'other', url: '' }] })}
-                                                            className="text-xs flex items-center gap-2 text-brand-secondary hover:text-white px-2 py-1 hover:bg-white/5 rounded-lg transition-colors"
-                                                        >
-                                                            <FolderPlus size={12} /> Add Link
-                                                        </button>
-                                                    </div>
-                                                )}
-
-                                                {/* Items List (Collapsible) */}
-                                                {expandedSets.has(set.id) && (
-                                                    <div className="border-t border-white/5 bg-black/20 min-h-[40px] shadow-inner">
-                                                        {set.items.map(item => (
-                                                            <div
-                                                                key={item.id}
-                                                                className={`px-4 py-2.5 flex items-center gap-3 text-sm transition-all cursor-grab active:cursor-grabbing border-l-[3px] select-none group/item ${selectedItems.has(item.id)
-                                                                    ? 'border-brand-primary bg-brand-primary/10 text-white'
-                                                                    : 'border-transparent text-slate-400 hover:bg-white/5 hover:text-slate-200'
-                                                                    }`}
-                                                                onClick={(e) => toggleItemSelection(item.id, e.ctrlKey || e.shiftKey)}
-                                                                draggable
-                                                                onDragStart={(e) => handleDragStart(e, item.id)}
-                                                            >
-                                                                <GripVertical size={14} className="text-slate-600 opacity-0 group-hover/item:opacity-100 transition-opacity cursor-grab active:cursor-grabbing" />
-                                                                <div
-                                                                    className={`w-4 h-4 rounded flex items-center justify-center border transition-all cursor-pointer hover:border-brand-primary/60 ${selectedItems.has(item.id) ? 'bg-brand-primary border-brand-primary' : 'border-slate-600 bg-black/20'}`}
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        toggleItemSelection(item.id, true);
-                                                                    }}
-                                                                >
-                                                                    {selectedItems.has(item.id) && <Check size={11} className="text-white" />}
-                                                                </div>
-                                                                <FileIcon size={14} className={selectedItems.has(item.id) ? 'text-brand-secondary' : 'text-slate-600 group-hover/item:text-slate-400 transition-colors'} />
-                                                                <span className="truncate font-mono text-xs opacity-90">{item.fileName}</span>
-                                                            </div>
-                                                        ))}
-                                                        {set.items.length === 0 && (
-                                                            <div className="px-10 py-6 text-xs text-slate-500 italic border-2 border-dashed border-white/5 m-4 rounded-xl text-center bg-white/[0.01]">
-                                                                Drag items here to organize
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </div>
-                                            {/* Recursive Children */}
-                                            {expandedSets.has(set.id) && sortedChildren.map(child => renderSet(child, level + 1))}
-                                        </div>
-                                    );
-                                };
-
-                                const tree = buildTree(creatorDetails.sets);
-                                return tree.map(set => renderSet(set, 0));
-                            })()}
+                            {sortedSetsTree.map(set => renderSet(set, 0))}
                         </div>
-
-                        {/* Selection Toolbar */}
-                        {selectedItems.size > 0 && (
-                            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-bg-card/90 backdrop-blur-xl border border-brand-primary/30 py-2 px-4 rounded-xl shadow-2xl flex items-center gap-4 animate-in slide-in-from-bottom-4 duration-300 z-30">
-                                <div className="flex flex-col">
-                                    <span className="text-[10px] font-bold text-brand-secondary uppercase tracking-widest">{selectedItems.size} Selected</span>
-                                    <span className="text-[8px] text-slate-500">Items to manage</span>
-                                </div>
-                                <div className="w-px h-6 bg-white/10" />
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() => setShowMoveModal(true)}
-                                        className="flex items-center gap-2 px-4 py-2 bg-brand-primary hover:bg-brand-secondary text-white rounded-lg text-xs font-bold transition-all shadow-lg shadow-brand-primary/20"
-                                    >
-                                        <Move size={14} /> Move to Set
-                                    </button>
-                                    <button
-                                        onClick={() => setSelectedItems(new Set())}
-                                        className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white rounded-lg text-xs font-bold transition-all"
-                                    >
-                                        <X size={14} /> Clear
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Move to Set Modal */}
-                        {showMoveModal && (
-                            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-6 animate-in fade-in duration-200">
-                                <div className="bg-bg-card border border-border-subtle rounded-[2rem] w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[80vh]">
-                                    <div className="flex justify-between items-center px-8 py-6 border-b border-white/5 bg-white/5">
-                                        <h2 className="text-xl font-bold bg-gradient-to-r from-brand-primary to-brand-secondary bg-clip-text text-transparent">
-                                            Move Items
-                                        </h2>
-                                        <button onClick={() => setShowMoveModal(false)} className="p-2 hover:bg-white/5 rounded-lg transition-colors text-slate-400 hover:text-white">
-                                            <X size={20} />
-                                        </button>
-                                    </div>
-
-                                    <div className="p-6 border-b border-white/5">
-                                        <div className="bg-black/20 border border-white/10 rounded-xl px-4 py-3 flex items-center gap-2 focus-within:border-brand-primary/50 transition-colors">
-                                            <Search size={18} className="text-slate-500" />
-                                            <input
-                                                type="text"
-                                                placeholder="Search destination set..."
-                                                className="bg-transparent border-none outline-none text-sm w-full text-slate-200 placeholder-slate-500"
-                                                value={moveSearch}
-                                                onChange={(e) => setMoveSearch(e.target.value)}
-                                                autoFocus
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="flex-grow overflow-y-auto custom-scrollbar p-6 space-y-2">
-                                        {creatorDetails.sets
-                                            .filter(s => s.name.toLowerCase().includes(moveSearch.toLowerCase()))
-                                            .sort((a, b) => a.name.localeCompare(b.name))
-                                            .map(set => (
-                                                <button
-                                                    key={set.id}
-                                                    onClick={() => {
-                                                        handleMoveItems(set.id, Array.from(selectedItems));
-                                                        setShowMoveModal(false);
-                                                        setMoveSearch('');
-                                                    }}
-                                                    className="w-full p-4 rounded-xl border border-white/5 bg-white/5 hover:bg-brand-primary/10 hover:border-brand-primary/30 transition-all text-left flex items-center justify-between group"
-                                                >
-                                                    <div className="flex flex-col">
-                                                        <span className="font-semibold text-slate-200 group-hover:text-brand-secondary">{set.name}</span>
-                                                        <span className="text-[10px] text-slate-500 uppercase tracking-widest">{set.items?.length || 0} items</span>
-                                                    </div>
-                                                    <ChevronRight size={16} className="text-slate-600 group-hover:text-brand-primary" />
-                                                </button>
-                                            ))}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
                     </>
                 ) : (
                     <div className="flex-grow flex flex-col items-center justify-center text-slate-500 gap-4">
@@ -1063,6 +1118,90 @@ const CreatorsView: React.FC = () => {
                             <Search size={30} className="text-slate-600" />
                         </div>
                         <p className="font-medium">{loadingDetails ? 'Loading details...' : 'Select a creator to manage library'}</p>
+                    </div>
+                )}
+
+                {/* Selection Toolbar */}
+                {selectedItems.size > 0 && (
+                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-bg-card/90 backdrop-blur-xl border border-brand-primary/30 py-2 px-4 rounded-xl shadow-2xl flex items-center gap-4 animate-in slide-in-from-bottom-4 duration-300 z-30">
+                        <div className="flex flex-col">
+                            <span className="text-[10px] font-bold text-brand-secondary uppercase tracking-widest">{selectedItems.size} Selected</span>
+                            <span className="text-[8px] text-slate-500">Items to manage</span>
+                        </div>
+                        <div className="w-px h-6 bg-white/10" />
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => setShowMoveModal(true)}
+                                className="flex items-center gap-2 px-4 py-2 bg-brand-primary hover:bg-brand-secondary text-white rounded-lg text-xs font-bold transition-all shadow-lg shadow-brand-primary/20"
+                            >
+                                <Move size={14} /> Move
+                            </button>
+                            <button
+                                onClick={handleDeleteSelectedItems}
+                                className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 rounded-lg text-xs font-bold transition-all"
+                            >
+                                <Trash2 size={14} /> Delete
+                            </button>
+                            <button
+                                onClick={() => setSelectedItems(new Set())}
+                                className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white rounded-lg text-xs font-bold transition-all"
+                            >
+                                <X size={14} /> Clear
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Move to Set Modal */}
+                {showMoveModal && creatorDetails && (
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-6 animate-in fade-in duration-200">
+                        <div className="bg-bg-card border border-border-subtle rounded-[2rem] w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[80vh]">
+                            <div className="flex justify-between items-center px-8 py-6 border-b border-white/5 bg-white/5">
+                                <h2 className="text-xl font-bold bg-gradient-to-r from-brand-primary to-brand-secondary bg-clip-text text-transparent">
+                                    Move Items
+                                </h2>
+                                <button onClick={() => setShowMoveModal(false)} className="p-2 hover:bg-white/5 rounded-lg transition-colors text-slate-400 hover:text-white">
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            <div className="p-6 border-b border-white/5">
+                                <div className="bg-black/20 border border-white/10 rounded-xl px-4 py-3 flex items-center gap-2 focus-within:border-brand-primary/50 transition-colors">
+                                    <Search size={18} className="text-slate-500" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search destination set..."
+                                        className="bg-transparent border-none outline-none text-sm w-full text-slate-200 placeholder-slate-500"
+                                        value={moveSearch}
+                                        onChange={(e) => setMoveSearch(e.target.value)}
+                                        autoFocus
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex-grow overflow-y-auto custom-scrollbar p-6 space-y-2">
+                                {creatorDetails.sets
+                                    .filter(s => s.name.toLowerCase().includes(moveSearch.toLowerCase()))
+                                    .sort((a, b) => a.name.localeCompare(b.name))
+                                    .map(set => (
+                                        <button
+                                            key={set.id}
+                                            onClick={() => {
+                                                handleMoveItems(set.id, Array.from(selectedItems));
+                                                setShowMoveModal(false);
+                                                setMoveSearch('');
+                                            }}
+                                            className="w-full p-4 rounded-xl border border-white/5 bg-white/5 hover:bg-brand-primary/10 hover:border-brand-primary/30 transition-all text-left flex items-center justify-between group"
+                                        >
+                                            <div className="flex flex-col">
+                                                <span className="font-semibold text-slate-200 group-hover:text-brand-secondary">{set.name}</span>
+                                                <span className="text-[10px] text-slate-500 uppercase tracking-widest">{countTotalItems(set, creatorDetails.sets)} items</span>
+                                            </div>
+                                            <ChevronRight size={16} className="text-slate-600 group-hover:text-brand-primary" />
+                                        </button>
+                                    ))}
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>

@@ -19,6 +19,7 @@ import HistoryView from './components/HistoryView';
 import logo from './assets/logo.png';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import SettingsModal from './components/SettingsModal';
+import ScanConfirmationModal from './components/ScanConfirmationModal';
 
 interface CCItem {
     creatorName: string;
@@ -57,6 +58,15 @@ interface ScanLog {
     status: string;
     scannedFiles?: string;
 }
+
+const countTotalItems = (set: any, allSets: any[]): number => {
+    let count = set.items?.length || 0;
+    const children = allSets.filter(s => s.parentId === set.id || s.parent_id === set.id);
+    children.forEach(child => {
+        count += countTotalItems(child, allSets);
+    });
+    return count;
+};
 
 const DashboardContent: React.FC = () => {
     const { themeColor, opacity } = useTheme();
@@ -103,25 +113,11 @@ const DashboardContent: React.FC = () => {
         try {
             const data = await (window as any).electron.invoke('scan-zip');
             if (data) {
-                // Assert type to include filePath which was missing in ScanAnalysis interface
                 const { results: scanResults, matches, filePath } = data as ScanAnalysis & { filePath: string };
 
-                const needsConfirm = matches.filter(m => m.needsConfirmation);
-                if (needsConfirm.length > 0) {
-                    // Store filePath in analysis state for later use
-                    setAnalysis({ results: scanResults, matches, filePath });
-                    setPendingConfirmations(needsConfirm);
-                } else {
-                    // No new or fuzzy creators, just process everything
-                    await (window as any).electron.invoke('confirm-scan', {
-                        results: scanResults,
-                        matches,
-                        filePath // Pass file path here
-                    });
-                    setResults(scanResults);
-                    loadCredits();
-                    setHistoryUpdateTrigger(prev => prev + 1); // Refresh history
-                }
+                // Always show the confirmation modal for safety
+                setAnalysis({ results: scanResults, matches, filePath });
+                setPendingConfirmations(matches.filter(m => m.needsConfirmation));
             }
         } catch (error) {
             console.error('Scan failed:', error);
@@ -130,34 +126,24 @@ const DashboardContent: React.FC = () => {
         }
     };
 
-    const handleConfirmScan = async () => {
-        if (!analysis) return;
+    const handleConfirmScan = async (finalAnalysis?: ScanAnalysis) => {
+        const targetAnalysis = finalAnalysis || analysis;
+        if (!targetAnalysis) return;
 
         await (window as any).electron.invoke('confirm-scan', {
-            results: analysis.results,
-            matches: analysis.matches,
-            filePath: analysis.filePath // Pass stored file path
+            results: targetAnalysis.results,
+            matches: targetAnalysis.matches,
+            filePath: targetAnalysis.filePath // Pass stored file path
         });
 
-        setResults(analysis.results);
+        setResults(targetAnalysis.results);
         setAnalysis(null);
         setPendingConfirmations([]);
         loadCredits();
         setHistoryUpdateTrigger(prev => prev + 1); // Refresh history
     };
 
-    const updateMatch = (foundName: string, updates: Partial<CreatorMatch>) => {
-        if (!analysis) return;
-        setAnalysis({
-            ...analysis,
-            matches: analysis.matches.map((m: CreatorMatch) =>
-                m.foundName === foundName ? { ...m, ...updates } : m
-            )
-        });
-        setPendingConfirmations((prev: CreatorMatch[]) =>
-            prev.filter((m: CreatorMatch) => m.foundName !== foundName)
-        );
-    };
+
 
     const [showReportOptions, setShowReportOptions] = useState(false);
 
@@ -395,7 +381,7 @@ const DashboardContent: React.FC = () => {
                                                             <div key={set.id} className="flex items-center gap-2 text-slate-400 group">
                                                                 <div className="w-1 h-1 bg-brand-primary/50 group-hover:bg-brand-primary transition-colors rounded-full" />
                                                                 <span className="text-sm truncate">{set.name}</span>
-                                                                <span className="text-[10px] text-slate-600 font-mono ml-auto">{set.items.length} ITM</span>
+                                                                <span className="text-[10px] text-slate-600 font-mono ml-auto">{countTotalItems(set, creator.sets)} ITM</span>
                                                             </div>
                                                         ))}
                                                         {creator.sets.length > 3 && (
@@ -459,7 +445,7 @@ const DashboardContent: React.FC = () => {
                 {/* Creators View */}
                 {currentView === 'creators' && (
                     <div className="p-8 overflow-hidden h-full">
-                        <CreatorsView />
+                        <CreatorsView refreshTrigger={historyUpdateTrigger} />
                     </div>
                 )}
 
@@ -497,93 +483,12 @@ const DashboardContent: React.FC = () => {
 
             {/* Scan Confirmation Modal */}
             {analysis && (
-                <div
-                    className="fixed inset-0 bg-black/80 backdrop-blur-xl z-50 flex items-center justify-center p-6 animate-in fade-in duration-300"
-                    onClick={(e) => { if (e.target === e.currentTarget) { setAnalysis(null); setPendingConfirmations([]); } }}
-                >
-                    <div className="bg-bg-card border border-border-subtle rounded-[2rem] w-full max-w-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
-                        <div className="px-8 py-6 border-b border-border-subtle bg-white/5 shrink-0">
-                            <h2 className="text-xl font-black tracking-tight flex items-center gap-3">
-                                <AlertCircle className="text-brand-primary" />
-                                Confirm New Creators
-                            </h2>
-                            <p className="text-slate-500 text-sm mt-1">We found some creators that aren't in your database or match existing ones.</p>
-                        </div>
-                        <div className="p-8 space-y-4 overflow-y-auto custom-scrollbar flex-grow">
-                            {analysis.matches.filter((m: CreatorMatch) => m.needsConfirmation).map((match: CreatorMatch, idx: number) => (
-                                <div key={idx} className="bg-white/5 border border-white/5 rounded-2xl p-6 space-y-4">
-                                    <div className="flex justify-between items-center">
-                                        <div className="flex flex-col">
-                                            <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Found in ZIP</span>
-                                            <span className="text-lg font-bold text-brand-primary">{match.foundName}</span>
-                                        </div>
-                                        {match.similarity > 0 && (
-                                            <div className="text-right">
-                                                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Match Strength</span>
-                                                <div className="text-green-500 font-black">{(match.similarity * 100).toFixed(0)}%</div>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {match.existingName ? (
-                                        <div className="bg-bg-dark rounded-xl p-4 border border-white/5">
-                                            <div className="text-xs font-bold text-slate-500 uppercase mb-2">Similar to existing:</div>
-                                            <div className="flex items-center justify-between">
-                                                <span className="font-semibold text-slate-300">{match.existingName}</span>
-                                                <div className="flex gap-2">
-                                                    <button
-                                                        onClick={() => updateMatch(match.foundName, { needsConfirmation: false })}
-                                                        className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-xs font-bold flex items-center gap-2 transition-all border border-white/5"
-                                                    >
-                                                        <Link2 size={14} />
-                                                        Use Existing
-                                                    </button>
-                                                    <button
-                                                        onClick={() => updateMatch(match.foundName, { existingId: undefined, existingName: undefined, needsConfirmation: false, similarity: 0 })}
-                                                        className="px-4 py-2 bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-secondary rounded-lg text-xs font-bold flex items-center gap-2 transition-all"
-                                                    >
-                                                        <UserPlus size={14} />
-                                                        Create New
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div className="flex items-center justify-between bg-bg-dark rounded-xl p-4 border border-white/5">
-                                            <span className="text-sm text-slate-400">This looks like a new creator.</span>
-                                            <button
-                                                onClick={() => updateMatch(match.foundName, { needsConfirmation: false })}
-                                                className="px-4 py-2 bg-brand-primary text-white rounded-lg text-xs font-black uppercase tracking-widest transition-all"
-                                            >
-                                                Register New
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                        <div className="p-8 border-t border-border-subtle bg-white/5 shrink-0 flex gap-4">
-                            <button
-                                onClick={handleConfirmScan}
-                                disabled={pendingConfirmations.length > 0}
-                                className={`flex-grow py-4 rounded-xl font-black uppercase tracking-widest text-sm shadow-xl transition-all active:scale-[0.98] ${pendingConfirmations.length > 0
-                                    ? 'bg-slate-700 text-slate-500 cursor-not-allowed shadow-none'
-                                    : 'bg-brand-primary hover:bg-brand-secondary text-white shadow-brand-primary/20'
-                                    }`}
-                            >
-                                {pendingConfirmations.length > 0
-                                    ? `Review ${pendingConfirmations.length} more...`
-                                    : 'Process Library Update'}
-                            </button>
-                            <button
-                                onClick={() => { setAnalysis(null); setPendingConfirmations([]); }}
-                                className="px-8 py-4 bg-white/5 hover:bg-white/10 rounded-xl font-bold text-slate-400 transition-all border border-white/5"
-                            >
-                                Cancel Scan
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <ScanConfirmationModal
+                    analysis={analysis}
+                    creatorsList={credits}
+                    onConfirm={handleConfirmScan}
+                    onCancel={() => { setAnalysis(null); setPendingConfirmations([]); }}
+                />
             )}
 
             {/* Edit Creator Modal */}

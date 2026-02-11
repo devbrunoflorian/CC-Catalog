@@ -24,6 +24,12 @@
       "dist",
       "package.json"
     ],
+    "extraResources": [
+      {
+        "from": "public/sims-cc.db",
+        "to": "sims-cc.db"
+      }
+    ],
     "win": {
       "icon": "public/favicon.png",
       "target": [

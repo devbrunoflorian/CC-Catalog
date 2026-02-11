@@ -17,7 +17,7 @@ import { initDatabase, getDb, saveDatabase } from './db/database.js';
 import { ZipScanner } from './lib/ZipScanner.js';
 import { ReportGenerator } from './lib/ReportGenerator.js';
 import { creators, ccSets, ccItems, scanHistory } from './db/schema.js';
-import { eq, sql, desc, asc } from 'drizzle-orm';
+import { eq, sql, desc, asc, inArray } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 
 // ES module __dirname polyfill (required for "type": "module" in package.json)
@@ -203,6 +203,21 @@ ipcMain.handle('move-items', async (_, { itemIds, targetSetId }) => {
     return { success: true };
 });
 
+ipcMain.handle('update-set-order', async (_, updates: { id: string; sortOrder: number }[]) => {
+    if (!dbInitialized) throw new Error('Database not initialized');
+    const db = getDb();
+
+    for (const update of updates) {
+        db.update(ccSets)
+            .set({ sortOrder: update.sortOrder, updatedAt: sql`CURRENT_TIMESTAMP` })
+            .where(eq(ccSets.id, update.id))
+            .run();
+    }
+
+    saveDatabase();
+    return { success: true };
+});
+
 ipcMain.handle('move-set', async (_, { setId, targetParentId }) => {
     if (!dbInitialized) throw new Error('Database not initialized');
     const db = getDb();
@@ -241,7 +256,7 @@ ipcMain.handle('update-set-link', async (_, { id, name, patreon_url, website_url
     return { success: true };
 });
 
-ipcMain.handle('update-creator', async (_, { id, patreon_url, website_url }: any) => {
+ipcMain.handle('update-creator', async (_, { id, name, patreon_url, website_url }: any) => {
     if (!dbInitialized) throw new Error('Database not initialized');
     const db = getDb();
 
@@ -781,6 +796,19 @@ ipcMain.handle('reorder-sets', async (_, { setsOrder }) => {
             .where(eq(ccSets.id, item.id))
             .run();
     }
+
+    saveDatabase();
+    return { success: true };
+});
+
+ipcMain.handle('delete-items', async (_, { itemIds }) => {
+    if (!dbInitialized) throw new Error('Database not initialized');
+    const db = getDb();
+
+    // In SQLite with Drizzle, we can use inArray
+    db.delete(ccItems)
+        .where(inArray(ccItems.id, itemIds))
+        .run();
 
     saveDatabase();
     return { success: true };

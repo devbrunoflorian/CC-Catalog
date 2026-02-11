@@ -74,10 +74,26 @@ export class ReportGenerator {
                     children.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || a.name.localeCompare(b.name));
 
                     children.forEach((set) => {
+                        let links: string[] = [];
+                        if (set.patreonUrl) links.push(`[Patreon](${set.patreonUrl})`);
+                        if (set.websiteUrl) links.push(`[Website](${set.websiteUrl})`);
+                        if (set.extraLinks) {
+                            try {
+                                const extra = JSON.parse(set.extraLinks);
+                                if (Array.isArray(extra)) {
+                                    extra.forEach((l: any) => {
+                                        if (l.url) links.push(`[${l.type || 'Link'}](${l.url})`);
+                                    });
+                                }
+                            } catch { }
+                        }
+
                         let setName = set.name;
-                        if (set.patreonUrl) setName = `**[${setName}](${set.patreonUrl})**`;
-                        else if (set.websiteUrl) setName = `**[${setName}](${set.websiteUrl})**`;
-                        else setName = `**${setName}**`;
+                        if (links.length > 0) {
+                            setName = `**${setName}** (${links.join(', ')})`;
+                        } else {
+                            setName = `**${setName}**`;
+                        }
 
                         const indent = '  '.repeat(level);
                         const headerPrefix = level === 0 ? '### 📁' : '#### 📂'; // Use level to differentiate

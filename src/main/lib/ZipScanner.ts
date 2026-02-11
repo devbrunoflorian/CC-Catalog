@@ -36,6 +36,13 @@ export class ZipScanner {
 
                 zipfile.readEntry();
 
+                const zipFileName = filePath.split(/[\\/]/).pop() || '';
+                const zipBaseName = zipFileName.replace(/\.zip$/i, '');
+
+                // Try to extract creator hint from filename (usually first word or "Creator - Set")
+                const zipParts = zipBaseName.split(/[-_ ]/);
+                const zipCreatorHint = zipParts[0];
+
                 zipfile.on('entry', (entry) => {
                     if (/\/$/.test(entry.fileName) || !entry.fileName.endsWith('.package')) {
                         // Directory or not a .package file, skip
@@ -53,12 +60,26 @@ export class ZipScanner {
 
                         if (pathParts.length >= 3 && pathParts[0] === 'Mods') {
                             const folderName = pathParts[2];
-                            // If folder is the package file itself (no subfolder), use Unsorted
                             setName = (folderName && !folderName.toLowerCase().endsWith('.package')) ? folderName : 'Unsorted';
                         } else if (pathParts.length >= 2 && pathParts[0] !== 'Mods') {
                             const folderName = pathParts[1];
-                            // If folder is the package file itself, use Unsorted
                             setName = (folderName && !folderName.toLowerCase().endsWith('.package')) ? folderName : 'Unsorted';
+                        }
+                    }
+
+                    // FALLBACK: If creator is unknown or shallow, try using zip filename hints
+                    if (creatorName === 'Unknown' || pathParts.length < 2) {
+                        // If we have a hint from zip filename, use it
+                        if (zipCreatorHint && zipCreatorHint.length > 2) {
+                            creatorName = zipCreatorHint;
+
+                            // If zip basename is "Creator SetName", try to set setName
+                            if (zipBaseName.toLowerCase().includes(zipCreatorHint.toLowerCase())) {
+                                const potentialSet = zipBaseName.replace(new RegExp(zipCreatorHint, 'i'), '').trim();
+                                if (potentialSet && setName === 'General') {
+                                    setName = potentialSet.replace(/^[-_ ]+/, ''); // Clean up leading separators
+                                }
+                            }
                         }
                     }
 
@@ -78,7 +99,9 @@ export class ZipScanner {
                     uniqueCreators.forEach((creatorName) => {
                         if (creatorName === 'Unknown') return;
 
-                        const exactMatch = existingCreators.find((c) => c.name.toLowerCase() === creatorName.toLowerCase());
+                        const nameLower = creatorName.toLowerCase();
+                        const exactMatch = existingCreators.find((c) => c.name.toLowerCase() === nameLower);
+
                         if (exactMatch) {
                             matches.push({
                                 foundName: creatorName,
@@ -90,22 +113,36 @@ export class ZipScanner {
                             return;
                         }
 
-                        // Find potential fuzzy matches
+                        // Improved Fuzzy and Substring Matching
                         let bestMatch: { id: string; name: string; score: number } | null = null;
+
                         for (const existing of existingCreators) {
-                            const score = getSimilarity(creatorName, existing.name);
-                            if (score > 0.7 && (!bestMatch || score > bestMatch.score)) {
+                            const existingLower = existing.name.toLowerCase();
+                            let score = getSimilarity(creatorName, existing.name);
+
+                            // Boost score if one contains the other (e.g. "Felixandre" in "Felixandre Berlin")
+                            if (nameLower.includes(existingLower) || existingLower.includes(nameLower)) {
+                                score = Math.max(score, 0.9); // High confidence for inclusion
+                            }
+
+                            // Specific Boost for "Starts With" (very common for "Creator Name - Set Name")
+                            if (nameLower.startsWith(existingLower) || existingLower.startsWith(nameLower)) {
+                                score = Math.max(score, 0.95);
+                            }
+
+                            if (score > 0.6 && (!bestMatch || score > bestMatch.score)) {
                                 bestMatch = { ...existing, score };
                             }
                         }
 
-                        if (bestMatch && bestMatch.score > 0.7) {
+                        if (bestMatch && bestMatch.score > 0.6) {
                             matches.push({
                                 foundName: creatorName,
                                 existingName: bestMatch.name,
                                 existingId: bestMatch.id,
                                 similarity: bestMatch.score,
-                                needsConfirmation: true,
+                                // If score is very high (inclusive/starts with), don't require confirmation
+                                needsConfirmation: bestMatch.score < 0.9,
                             });
                         } else {
                             matches.push({
