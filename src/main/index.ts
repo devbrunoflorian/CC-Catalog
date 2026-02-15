@@ -927,6 +927,11 @@ ipcMain.handle('generate-report', async (_, options) => {
     return ReportGenerator.generateMarkdown(options);
 });
 
+ipcMain.handle('generate-report-html', async (_, options) => {
+    if (!dbInitialized) throw new Error('Database not initialized');
+    return ReportGenerator.generateHTML(options);
+});
+
 ipcMain.on('splash-finished', () => {
     if (splashWin) {
         splashWin.close();
