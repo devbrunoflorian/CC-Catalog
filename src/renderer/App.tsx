@@ -634,33 +634,36 @@ const DashboardContent: React.FC = () => {
                                         Last Scan Activity
                                     </h2>
 
-                                    <div className="glass-effect rounded-2xl p-6 border border-border-subtle min-h-[500px] flex flex-col">
+                                    <div className="glass-mica rounded-[2rem] p-6 border border-white/5 min-h-[500px] flex flex-col relative overflow-hidden">
+                                        {/* Ambient Glow Background Effect */}
+                                        <div className="absolute top-0 right-0 w-64 h-64 bg-brand-primary/5 blur-[100px] -mr-32 -mt-32 pointer-events-none" />
+
                                         {results.length === 0 ? (
-                                            <div className="flex-grow flex flex-col items-center justify-center text-slate-600 italic">
-                                                <History size={48} className="mb-4 opacity-5 shrink-0" />
+                                            <div className="flex-grow flex flex-col items-center justify-center text-slate-600 italic relative z-10">
+                                                <History size={48} className="mb-4 opacity-10 shrink-0" />
                                                 <span className="opacity-40">No recent scan activity</span>
                                             </div>
                                         ) : (
-                                            <div className="flex flex-col h-full overflow-hidden">
-                                                <div className="flex items-center justify-between mb-6 shrink-0">
-                                                    <div className="flex items-center gap-2 text-green-400 text-sm font-bold">
-                                                        <CheckCircle2 size={18} />
-                                                        Successfully identified {results.length} items
+                                            <div className="flex flex-col h-full overflow-hidden relative z-10">
+                                                <div className="flex items-center justify-between mb-6 shrink-0 px-1">
+                                                    <div className="flex items-center gap-2 text-green-400 text-xs font-bold uppercase tracking-widest">
+                                                        <CheckCircle2 size={16} />
+                                                        Found {results.length} items
                                                     </div>
                                                     <button
                                                         onClick={() => handleOpenReportOptions({ type: 'scan', contextName: 'Last Scan', items: results.map((r: any) => r.fileName) })}
-                                                        className="text-xs bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg border border-white/5 transition-colors flex items-center gap-2 font-medium text-slate-300 hover:text-white"
+                                                        className="text-[10px] bg-white/5 hover:bg-white/10 px-3 py-2 rounded-xl border border-white/5 transition-all flex items-center gap-2 font-black uppercase tracking-widest text-slate-400 hover:text-white hover-glow"
                                                     >
-                                                        <Clipboard size={14} />
-                                                        Create Scan Report
+                                                        <Clipboard size={12} />
+                                                        Create Report
                                                     </button>
                                                 </div>
                                                 <div className="space-y-3 overflow-y-auto custom-scrollbar flex-grow pr-1">
                                                     {results.map((item: CCItem, idx: number) => (
-                                                        <div key={idx} className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col gap-1 hover:bg-white/[0.08] transition-colors group">
-                                                            <span className="text-[10px] text-brand-secondary font-bold uppercase tracking-wider">{item.creatorName}</span>
-                                                            <span className="text-sm text-slate-300 truncate font-medium">{item.fileName}</span>
-                                                            <span className="text-[10px] text-slate-600 mt-1">Set: {item.setName}</span>
+                                                        <div key={idx} className="glass-card p-4 rounded-2xl flex flex-col gap-1 transition-all group hover-lift border-white/5">
+                                                            <span className="text-[10px] text-brand-secondary font-black uppercase tracking-widest opacity-80 group-hover:opacity-100">{item.creatorName}</span>
+                                                            <span className="text-sm text-slate-200 truncate font-semibold group-hover:text-white">{item.fileName}</span>
+                                                            <span className="text-[10px] text-slate-500 font-medium mt-1">Set: <span className="text-slate-400">{item.setName}</span></span>
                                                         </div>
                                                     ))}
                                                 </div>

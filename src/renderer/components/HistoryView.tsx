@@ -111,7 +111,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ onReport }) => {
             key={log.id}
             draggable
             onDragStart={(e) => handleDragStart(e, log.id)}
-            className="relative group overflow-hidden bg-white/[0.03] backdrop-blur-md border border-border-subtle hover:border-brand-primary/30 rounded-xl p-3 flex justify-between items-center transition-all duration-300 hover:bg-white/[0.06] cursor-grab active:cursor-grabbing mb-2 last:mb-0 hover-lift"
+            className="relative group overflow-hidden glass-card hover:bg-white/[0.08] rounded-xl p-3 flex justify-between items-center transition-all duration-300 cursor-grab active:cursor-grabbing mb-2 last:mb-0 hover-lift border-white/5"
         >
             <div className="flex items-center gap-3 relative z-10 overflow-hidden">
                 <div className={`w-8 h-8 shrink-0 rounded-lg flex items-center justify-center ${log.status === 'success' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
@@ -158,7 +158,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ onReport }) => {
         return (
             <div
                 key={folder.id}
-                className="mb-3 rounded-2xl overflow-hidden border border-white/5 bg-white/[0.02] transition-all"
+                className="mb-3 rounded-2xl overflow-hidden border border-white/5 bg-white/[0.01] hover:bg-white/[0.03] transition-all"
                 onDragOver={handleDragOver}
                 onDrop={(e) => {
                     e.stopPropagation();
@@ -233,7 +233,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ onReport }) => {
 
         return (
             <div
-                className={`flex-grow flex flex-col min-w-0 glass-effect rounded-[2rem] border border-white/5 overflow-hidden transition-all ${category === 'buildings' ? 'bg-brand-primary/5' : 'bg-white/[0.02]'}`}
+                className={`flex-grow flex flex-col min-w-0 glass-mica rounded-[2rem] border border-white/5 overflow-hidden transition-all relative ${category === 'buildings' ? 'bg-brand-primary/[0.02]' : 'bg-white/[0.01]'}`}
                 onDragOver={handleDragOver}
                 onDrop={(e) => handleDrop(e, null, category)}
             >

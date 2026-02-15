@@ -3,9 +3,10 @@
 @theme {
   --color-brand-primary: hsl(262, 83%, 65%);
   --color-brand-secondary: hsl(262, 83%, 75%);
-  --color-bg-dark: hsl(240, 10%, 4%);
-  --color-bg-card: hsl(240, 10%, 7%);
-  --color-border-subtle: hsl(240, 5%, 15%);
+  --color-bg-dark: hsl(240, 10%, 6%);
+  --color-bg-card: hsl(240, 10%, 10%);
+  --color-border-subtle: rgba(255, 255, 255, 0.08);
+  --shadow-lift: 0 8px 30px rgba(0, 0, 0, 0.3);
 
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
 }
@@ -68,9 +69,22 @@
 
 /* Custom Micro-animations */
 .glass-effect {
-  @apply bg-bg-card/80 backdrop-blur-md border border-white/5;
+  @apply bg-white/[0.04] backdrop-blur-xl border border-white/10;
+}
+
+.glass-mica {
+  @apply bg-white/[0.02] backdrop-blur-[12px] border border-white/5 shadow-2xl;
+}
+
+.glass-card {
+  @apply bg-white/[0.05] backdrop-blur-md border border-white/10 shadow-lg relative overflow-hidden;
+}
+
+.glass-card::before {
+  content: '';
+  @apply absolute inset-0 bg-gradient-to-br from-white/[0.05] to-transparent pointer-events-none;
 }
 
 .hover-lift {
-  @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_0_20px_rgba(var(--brand-primary), 0.3)] hover:border-brand-primary/50;
+  @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-lift hover:border-white/20;
 }
