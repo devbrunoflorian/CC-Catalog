@@ -184,6 +184,27 @@ const HistoryView: React.FC<HistoryViewProps> = ({ onReport }) => {
 
                     <div className="flex items-center gap-2">
                         <button
+                            onClick={async (e) => {
+                                e.stopPropagation();
+                                const items = await (window as any).electron.invoke('get-folder-scanned-files', folder.id);
+                                if (onReport) {
+                                    onReport({
+                                        id: `folder-${folder.id}`,
+                                        fileName: `Folder: ${folder.name}`,
+                                        scanDate: new Date().toISOString(),
+                                        itemsFound: folderItems.reduce((acc, h) => acc + h.itemsFound, 0),
+                                        creatorsFound: 0,
+                                        status: 'success',
+                                        scannedFiles: JSON.stringify(items)
+                                    });
+                                }
+                            }}
+                            className="p-1.5 text-brand-secondary hover:text-brand-primary hover:bg-brand-primary/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                            title="Generate Folder Report"
+                        >
+                            <Hash size={14} />
+                        </button>
+                        <button
                             onClick={(e) => handleDeleteFolder(folder.id, e)}
                             className="p-1.5 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
                             title="Delete Folder"

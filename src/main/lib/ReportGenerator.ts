@@ -56,11 +56,12 @@ export class ReportGenerator {
         allCreators.sort((a, b) => a.name.localeCompare(b.name));
 
         allCreators.forEach((creator) => {
+            let creatorLine = '';
             if (options.includeCreators) {
                 let creatorName = creator.name;
                 if (creator.patreonUrl) creatorName = `[${creatorName}](${creator.patreonUrl})`;
                 else if (creator.websiteUrl) creatorName = `[${creatorName}](${creator.websiteUrl})`;
-                report += `${creatorName}\n\n`;
+                creatorLine = creatorName;
             }
 
             if (options.includeSets) {
@@ -69,7 +70,10 @@ export class ReportGenerator {
                     allSets = allSets.filter(s => targetSetIds!.includes(s.id));
                 }
 
-                const renderSets = (parentId: string | null, level: number) => {
+                const setEntries: string[] = [];
+                const seenSets = new Set<string>();
+
+                const collectSets = (parentId: string | null) => {
                     const children = allSets.filter(s => s.parentId === parentId);
                     children.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || a.name.localeCompare(b.name));
 
@@ -88,58 +92,58 @@ export class ReportGenerator {
                             } catch { }
                         }
 
-                        let setName = set.name;
-                        if (links.length > 0) {
-                            setName = `${setName} (${links.join(', ')})`;
-                        } else {
-                            setName = `${setName}`;
+                        let setLabel = set.name;
+                        const setKey = `${set.name}|${links.join(',')}`;
+
+                        if (!seenSets.has(setKey)) {
+                            let setNameWithLinks = setLabel;
+                            if (links.length > 0) {
+                                setNameWithLinks = `${setLabel} (${links.join(', ')})`;
+                            }
+                            setEntries.push(setNameWithLinks);
+                            seenSets.add(setKey);
                         }
 
-                        const indent = '  '.repeat(level);
-                        report += `${indent}${setName}\n`;
-
-                        if (options.includeItems) {
-                            let items = db.select().from(ccItems).where(eq(ccItems.ccSetId, set.id)).all();
-                            if (targetItemNames !== null) {
-                                items = items.filter(i => targetItemNames!.has(i.fileName));
-                            }
-                            items.sort((a, b) => a.fileName.localeCompare(b.fileName));
-
-                            if (items.length > 0) {
-                                items.forEach(item => {
-                                    report += `- \`${item.fileName}\``;
-                                    if (options.includeCategory && item.categoryId) {
-                                        const cat = db.select().from(categories).where(eq(categories.id, item.categoryId)).get();
-                                        if (cat) report += ` _[${cat.name}]_`;
-                                    }
-                                    report += `\n`;
-                                });
-                                report += `\n`;
-                            }
-                        } else {
-                            report += `\n`;
-                        }
-
-                        // Recursively render children
-                        renderSets(set.id, level + 1);
+                        // Recursively collect children
+                        collectSets(set.id);
                     });
                 };
 
-                const rootSets = allSets.filter(s => !s.parentId);
-                if (allSets.length > 0 && rootSets.length === 0 && targetSetIds) {
-                    // If we filtered and only have children, show them as roots for the report
-                    renderSets(null, options.includeCreators ? 1 : 0);
-                } else {
-                    renderSets(null, options.includeCreators ? 1 : 0);
+                collectSets(null);
+
+                if (setEntries.length > 0) {
+                    if (creatorLine) {
+                        report += `${creatorLine}: ${setEntries.join(', ')}\n`;
+                    } else {
+                        report += `${setEntries.join(', ')}\n`;
+                    }
+                } else if (creatorLine) {
+                    report += `${creatorLine}\n`;
                 }
 
-                if (allSets.length === 0 && options.includeCreators) {
-                    report += `_No sets found._\n\n`;
+                if (options.includeItems) {
+                    // If items are included, we'll list them as before but more compactly
+                    allSets.forEach(set => {
+                        let items = db.select().from(ccItems).where(eq(ccItems.ccSetId, set.id)).all();
+                        if (targetItemNames !== null) {
+                            items = items.filter(i => targetItemNames!.has(i.fileName));
+                        }
+                        if (items.length > 0) {
+                            items.sort((a, b) => a.fileName.localeCompare(b.fileName));
+                            items.forEach(item => {
+                                report += `- ${item.fileName}`;
+                                if (options.includeCategory && item.categoryId) {
+                                    const cat = db.select().from(categories).where(eq(categories.id, item.categoryId)).get();
+                                    if (cat) report += ` [${cat.name}]`;
+                                }
+                                report += `\n`;
+                            });
+                        }
+                    });
                 }
+            } else if (creatorLine) {
+                report += `${creatorLine}\n`;
             }
-
-            // Removed thematic break '---'
-            if (options.includeCreators) report += '\n\n';
         });
 
         if (report === 'Library Report\n\n' || report === 'Scan Report\n\n') {
@@ -190,14 +194,14 @@ export class ReportGenerator {
         allCreators.sort((a, b) => a.name.localeCompare(b.name));
 
         allCreators.forEach((creator) => {
+            let creatorHtml = '';
             if (options.includeCreators) {
                 let creatorName = creator.name;
-                // Prioritize Patreon URL over Website URL
                 const linkUrl = creator.patreonUrl || creator.websiteUrl;
                 if (linkUrl) {
                     creatorName = `<a href="${linkUrl}">${creatorName}</a>`;
                 }
-                html += `${creatorName}<br><br>\n`;
+                creatorHtml = creatorName;
             }
 
             if (options.includeSets) {
@@ -206,16 +210,17 @@ export class ReportGenerator {
                     allSets = allSets.filter(s => targetSetIds!.includes(s.id));
                 }
 
-                const renderSets = (parentId: string | null, level: number) => {
+                const setEntries: string[] = [];
+                const seenSets = new Set<string>();
+
+                const collectSets = (parentId: string | null) => {
                     const children = allSets.filter(s => s.parentId === parentId);
                     children.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || a.name.localeCompare(b.name));
 
                     children.forEach((set) => {
                         let setName = set.name;
-                        // Prioritize Patreon URL over Website URL
                         let linkUrl = set.patreonUrl || set.websiteUrl;
 
-                        // Check extra links if no main link
                         if (!linkUrl && set.extraLinks) {
                             try {
                                 const extra = JSON.parse(set.extraLinks);
@@ -225,54 +230,56 @@ export class ReportGenerator {
                             } catch { }
                         }
 
-                        if (linkUrl) {
-                            setName = `<a href="${linkUrl}">${setName}</a>`;
-                        }
-
-                        if (level === 0) {
-                            html += `${setName}<br>\n`;
-                        } else {
-                            html += `<div style="margin-left: ${level * 20}px;">${setName}</div>\n`;
-                        }
-
-                        if (options.includeItems) {
-                            let items = db.select().from(ccItems).where(eq(ccItems.ccSetId, set.id)).all();
-                            if (targetItemNames !== null) {
-                                items = items.filter(i => targetItemNames!.has(i.fileName));
+                        const setKey = `${set.name}|${linkUrl || ''}`;
+                        if (!seenSets.has(setKey)) {
+                            let setTag = setName;
+                            if (linkUrl) {
+                                setTag = `<a href="${linkUrl}">${setName}</a>`;
                             }
-                            items.sort((a, b) => a.fileName.localeCompare(b.fileName));
-
-                            if (items.length > 0) {
-                                html += `<ul>\n`;
-                                items.forEach(item => {
-                                    let itemText = item.fileName;
-                                    if (options.includeCategory && item.categoryId) {
-                                        const cat = db.select().from(categories).where(eq(categories.id, item.categoryId)).get();
-                                        if (cat) itemText += ` <em>[${cat.name}]</em>`;
-                                    }
-                                    html += `<li>${itemText}</li>\n`;
-                                });
-                                html += `</ul>\n`;
-                            }
+                            setEntries.push(setTag);
+                            seenSets.add(setKey);
                         }
 
-                        renderSets(set.id, level + 1);
+                        collectSets(set.id);
                     });
                 };
 
-                const rootSets = allSets.filter(s => !s.parentId);
-                if (allSets.length > 0 && rootSets.length === 0 && targetSetIds) {
-                    renderSets(null, 0);
-                } else {
-                    renderSets(null, 0);
+                collectSets(null);
+
+                if (setEntries.length > 0) {
+                    if (creatorHtml) {
+                        html += `<div>${creatorHtml}: ${setEntries.join(', ')}</div>\n`;
+                    } else {
+                        html += `<div>${setEntries.join(', ')}</div>\n`;
+                    }
+                } else if (creatorHtml) {
+                    html += `<div>${creatorHtml}</div>\n`;
                 }
 
-                if (allSets.length === 0 && options.includeCreators) {
-                    html += `<p><em>No sets found.</em></p>\n`;
+                if (options.includeItems) {
+                    allSets.forEach(set => {
+                        let items = db.select().from(ccItems).where(eq(ccItems.ccSetId, set.id)).all();
+                        if (targetItemNames !== null) {
+                            items = items.filter(i => targetItemNames!.has(i.fileName));
+                        }
+                        if (items.length > 0) {
+                            items.sort((a, b) => a.fileName.localeCompare(b.fileName));
+                            html += `<ul>\n`;
+                            items.forEach(item => {
+                                let itemText = item.fileName;
+                                if (options.includeCategory && item.categoryId) {
+                                    const cat = db.select().from(categories).where(eq(categories.id, item.categoryId)).get();
+                                    if (cat) itemText += ` <em>[${cat.name}]</em>`;
+                                }
+                                html += `<li>${itemText}</li>\n`;
+                            });
+                            html += `</ul>\n`;
+                        }
+                    });
                 }
+            } else if (creatorHtml) {
+                html += `<div>${creatorHtml}</div>\n`;
             }
-
-            if (options.includeCreators) html += `<br>\n`;
         });
 
         if (html === '') return '<p><em>No data available.</em></p>';

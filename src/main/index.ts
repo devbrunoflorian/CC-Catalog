@@ -1040,6 +1040,52 @@ ipcMain.handle('generate-report-html', async (_, options) => {
     return ReportGenerator.generateHTML(options);
 });
 
+ipcMain.handle('get-folder-scanned-files', async (_, folderId) => {
+    if (!dbInitialized) throw new Error('Database not initialized');
+    const db = getDb();
+    const logs = db.select().from(scanHistory).where(eq(scanHistory.folderId, folderId)).all();
+    const allFiles = new Set<string>();
+    logs.forEach(log => {
+        if (log.scannedFiles) {
+            try {
+                const files = JSON.parse(log.scannedFiles);
+                if (Array.isArray(files)) {
+                    files.forEach(f => allFiles.add(f));
+                }
+            } catch (e) { }
+        }
+    });
+    return Array.from(allFiles);
+});
+
+ipcMain.handle('generate-folder-report', async (_, { folderId, type, options }) => {
+    if (!dbInitialized) throw new Error('Database not initialized');
+    const db = getDb();
+    const logs = db.select().from(scanHistory).where(eq(scanHistory.folderId, folderId)).all();
+    const allFiles = new Set<string>();
+    logs.forEach(log => {
+        if (log.scannedFiles) {
+            try {
+                const files = JSON.parse(log.scannedFiles);
+                if (Array.isArray(files)) {
+                    files.forEach(f => allFiles.add(f));
+                }
+            } catch (e) { }
+        }
+    });
+
+    const reportOptions = {
+        ...options,
+        filterFileNames: Array.from(allFiles)
+    };
+
+    if (type === 'html') {
+        return ReportGenerator.generateHTML(reportOptions);
+    } else {
+        return ReportGenerator.generateMarkdown(reportOptions);
+    }
+});
+
 ipcMain.handle('report-renderer-error', async (_, errorInfo) => {
     Logger.error('RENDERER ERROR', errorInfo);
 });
