@@ -18,7 +18,7 @@ export class ReportGenerator {
         includeCategory: true
     }): string {
         const db = getDb();
-        let report = options.filterFileNames ? '# CC Catalog Scan Report\n\n' : '# CC Catalog Report\n\n';
+        let report = options.filterFileNames ? 'Scan Report\n\n' : 'Library Report\n\n';
 
         // 1. Filter Logic
         let targetCreatorIds: string[] | null = null;
@@ -31,7 +31,7 @@ export class ReportGenerator {
             const foundItems = db.select().from(ccItems).where(inArray(ccItems.fileName, options.filterFileNames)).all();
 
             if (foundItems.length === 0) {
-                return '# CC Catalog Scan Report\n\n_No matching items found in library for this scan._';
+                return 'Scan Report\n\n_No matching items found in library for this scan._';
             }
 
             targetSetIds = [...new Set(foundItems.map(i => i.ccSetId).filter(id => id !== null) as string[])];
@@ -60,7 +60,7 @@ export class ReportGenerator {
                 let creatorName = creator.name;
                 if (creator.patreonUrl) creatorName = `[${creatorName}](${creator.patreonUrl})`;
                 else if (creator.websiteUrl) creatorName = `[${creatorName}](${creator.websiteUrl})`;
-                report += `## ${creatorName}\n\n`;
+                report += `${creatorName}\n\n`;
             }
 
             if (options.includeSets) {
@@ -90,15 +90,13 @@ export class ReportGenerator {
 
                         let setName = set.name;
                         if (links.length > 0) {
-                            setName = `**${setName}** (${links.join(', ')})`;
+                            setName = `${setName} (${links.join(', ')})`;
                         } else {
-                            setName = `**${setName}**`;
+                            setName = `${setName}`;
                         }
 
                         const indent = '  '.repeat(level);
-                        const headerPrefix = level === 0 ? '### ' : '#### '; // Use level to differentiate
-
-                        report += `${headerPrefix} ${setName}\n`;
+                        report += `${indent}${setName}\n`;
 
                         if (options.includeItems) {
                             let items = db.select().from(ccItems).where(eq(ccItems.ccSetId, set.id)).all();
@@ -140,10 +138,11 @@ export class ReportGenerator {
                 }
             }
 
-            if (options.includeCreators) report += '---\n\n';
+            // Removed thematic break '---'
+            if (options.includeCreators) report += '\n\n';
         });
 
-        if (report === '# CC Catalog Report\n\n' || report === '# CC Catalog Scan Report\n\n') {
+        if (report === 'Library Report\n\n' || report === 'Scan Report\n\n') {
             return report + '_No data available._';
         }
 
@@ -198,7 +197,7 @@ export class ReportGenerator {
                 if (linkUrl) {
                     creatorName = `<a href="${linkUrl}">${creatorName}</a>`;
                 }
-                html += `<h2>${creatorName}</h2>\n`;
+                html += `${creatorName}<br><br>\n`;
             }
 
             if (options.includeSets) {
@@ -228,14 +227,12 @@ export class ReportGenerator {
 
                         if (linkUrl) {
                             setName = `<a href="${linkUrl}">${setName}</a>`;
-                        } else {
-                            setName = `<strong>${setName}</strong>`;
                         }
 
                         if (level === 0) {
-                            html += `<h3>${setName}</h3>\n`;
+                            html += `${setName}<br>\n`;
                         } else {
-                            html += `<p style="margin-left: ${level * 20}px;">${setName}</p>\n`;
+                            html += `<div style="margin-left: ${level * 20}px;">${setName}</div>\n`;
                         }
 
                         if (options.includeItems) {
