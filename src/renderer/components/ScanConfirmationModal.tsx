@@ -9,6 +9,13 @@ export interface CreatorMatch {
     needsConfirmation: boolean;
 }
 
+export interface DuplicateItem {
+    fileName: string;
+    existingCreatorName: string;
+    existingSetName: string;
+    existingSetHierarchy: string[];
+}
+
 export interface ScanResult { // Renamed from CCItem to match logic
     creatorName: string;
     setHierarchy: string[];
@@ -19,6 +26,7 @@ export interface ScanResult { // Renamed from CCItem to match logic
 export interface ScanAnalysis {
     results: ScanResult[];
     matches: CreatorMatch[];
+    duplicates?: DuplicateItem[];
     filePath?: string;
 }
 
@@ -52,6 +60,7 @@ const ScanConfirmationModal: React.FC<ScanConfirmationModalProps> = ({ analysis,
     // 1. Initialize decisions based on analysis
     const [decisions, setDecisions] = useState<Record<string, CreatorDecision>>({});
     const [expandedCreators, setExpandedCreators] = useState<Set<string>>(new Set());
+    const [showDuplicates, setShowDuplicates] = useState(false);
 
     useEffect(() => {
         const initialDecisions: Record<string, CreatorDecision> = {};
@@ -471,6 +480,44 @@ const ScanConfirmationModal: React.FC<ScanConfirmationModalProps> = ({ analysis,
                         );
                     })}
                 </div>
+
+                {analysis.duplicates && analysis.duplicates.length > 0 && (
+                    <div className="border-t border-white/5 bg-black/20 shrink-0">
+                        <button
+                            onClick={() => setShowDuplicates(!showDuplicates)}
+                            className="w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors text-left"
+                        >
+                            <div className="flex items-center gap-3">
+                                <AlertCircle size={20} className="text-yellow-500/80" />
+                                <div>
+                                    <div className="font-bold text-slate-300">
+                                        {analysis.duplicates.length} items ignored (already exist)
+                                    </div>
+                                    <div className="text-xs text-slate-500">
+                                        These files will be skipped during import.
+                                    </div>
+                                </div>
+                            </div>
+                            {showDuplicates ? <ChevronDown size={20} className="text-slate-500" /> : <ChevronRight size={20} className="text-slate-500" />}
+                        </button>
+
+                        {showDuplicates && (
+                            <div className="max-h-48 overflow-y-auto p-2 bg-black/40 border-t border-white/5 grid gap-1">
+                                {analysis.duplicates.map((dup, i) => (
+                                    <div key={i} className="flex items-center gap-2 text-xs p-2 rounded hover:bg-white/5 transition-colors">
+                                        <div className="text-slate-400 truncate w-1/3" title={dup.fileName}>
+                                            {dup.fileName}
+                                        </div>
+                                        <ArrowRight size={10} className="text-slate-600 shrink-0" />
+                                        <div className="text-brand-primary truncate w-2/3" title={`${dup.existingCreatorName} > ${dup.existingSetHierarchy.join(' > ')}`}>
+                                            {dup.existingCreatorName} <span className="text-slate-600">/</span> {dup.existingSetHierarchy.join(' / ')}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 <div className="p-8 border-t border-border-subtle bg-white/5 shrink-0 flex gap-4">
                     <button

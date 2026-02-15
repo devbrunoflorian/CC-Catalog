@@ -19,9 +19,17 @@ export interface CreatorMatch {
     needsConfirmation: boolean;
 }
 
+export interface DuplicateItem {
+    fileName: string;
+    existingCreatorName: string;
+    existingSetName: string;
+    existingSetHierarchy: string[];
+}
+
 export interface ScanAnalysis {
     results: ScanResult[];
     matches: CreatorMatch[];
+    duplicates: DuplicateItem[];
 }
 
 export class ZipScanner {
@@ -126,6 +134,58 @@ export class ZipScanner {
                     const existingCreators = db.select({ id: creators.id, name: creators.name }).from(creators).all();
                     const matches: CreatorMatch[] = [];
 
+                    // --- DUPLICATE DETECTION --
+                    const duplicates: DuplicateItem[] = [];
+                    const filteredResults: ScanResult[] = [];
+
+                    for (const res of results) {
+                        const existingItem = db.select({
+                            itemId: ccItems.id,
+                            setId: ccItems.ccSetId
+                        }).from(ccItems)
+                            .where(eq(ccItems.fileName, res.fileName))
+                            .get();
+
+                        if (existingItem) {
+                            // Item exists, resolve details for reporting
+                            const setInfo = db.select({
+                                setName: ccSets.name,
+                                creatorId: ccSets.creatorId,
+                                parentId: ccSets.parentId
+                            }).from(ccSets).where(eq(ccSets.id, existingItem.setId)).get();
+
+                            let existingCreatorName = 'Unknown';
+                            let existingSetName = 'Unknown';
+                            let existingSetHierarchy: string[] = [];
+
+                            if (setInfo) {
+                                existingSetName = setInfo.setName;
+                                const creatorInfo = db.select({ name: creators.name }).from(creators).where(eq(creators.id, setInfo.creatorId)).get();
+                                if (creatorInfo) existingCreatorName = creatorInfo.name;
+
+                                // Resolve hierarchy (simplified, just parent -> set)
+                                // If needed, we could traverse up, but let's at least get immediate parent
+                                if (setInfo.parentId) {
+                                    const parentSet = db.select({ name: ccSets.name }).from(ccSets).where(eq(ccSets.id, setInfo.parentId)).get();
+                                    if (parentSet) existingSetHierarchy = [parentSet.name, existingSetName];
+                                    else existingSetHierarchy = [existingSetName];
+                                } else {
+                                    existingSetHierarchy = [existingSetName];
+                                }
+                            }
+
+                            duplicates.push({
+                                fileName: res.fileName,
+                                existingCreatorName,
+                                existingSetName,
+                                existingSetHierarchy
+                            });
+                        } else {
+                            filteredResults.push(res);
+                        }
+                    }
+                    // --------------------------
+
                     uniqueCreators.forEach((creatorName) => {
                         if (creatorName === 'Unknown') return;
 
@@ -179,7 +239,7 @@ export class ZipScanner {
                         }
                     });
 
-                    resolve({ results, matches });
+                    resolve({ results: filteredResults, matches, duplicates });
                 });
 
                 zipfile.on('error', (err) => {

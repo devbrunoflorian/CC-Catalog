@@ -98,10 +98,10 @@ const DashboardContent: React.FC = () => {
         try {
             const data = await (window as any).electron.invoke('scan-zip');
             if (data) {
-                const { results: scanResults, matches, filePath } = data as ScanAnalysis & { filePath: string };
+                const { results: scanResults, matches, duplicates, filePath } = data as ScanAnalysis & { filePath: string };
 
                 // Always show the confirmation modal for safety
-                setAnalysis({ results: scanResults, matches, filePath });
+                setAnalysis({ results: scanResults, matches, duplicates, filePath });
                 setPendingConfirmations(matches.filter(m => m.needsConfirmation));
             }
         } catch (error) {
