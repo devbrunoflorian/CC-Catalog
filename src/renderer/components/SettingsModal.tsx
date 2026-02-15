@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Check, ExternalLink } from 'lucide-react';
+import { X, Check, ExternalLink, DownloadCloud } from 'lucide-react';
 import { ThemeColor, useTheme } from '../context/ThemeContext';
 
 interface SettingsModalProps {
@@ -21,6 +21,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
         const handleStatus = (_event: any, data: any) => {
             if (typeof data === 'string') {
                 setUpdateStatus(data);
+            } else if (data && data.status === 'ready') {
+                setUpdateStatus('ready');
             } else if (data && data.message) {
                 setUpdateStatus(data.message);
             }
@@ -35,6 +37,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
             (window as any).electron.removeAllListeners('update-progress');
         };
     }, [isOpen]);
+
+    const handleInstallUpdate = () => {
+        (window as any).electron.invoke('quit-and-install');
+    };
 
     if (!isOpen) return null;
 
@@ -192,8 +198,21 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 
                             {updateStatus && (
                                 <div className="space-y-2">
-                                    <p className="text-[10px] text-center font-mono text-slate-400 uppercase">{updateStatus}</p>
-                                    {updateProgress > 0 && updateProgress < 100 && (
+                                    <p className="text-[10px] text-center font-mono text-slate-400 uppercase">
+                                        {updateStatus === 'ready' ? 'Update Ready to Install' : updateStatus}
+                                    </p>
+
+                                    {updateStatus === 'ready' && (
+                                        <button
+                                            onClick={handleInstallUpdate}
+                                            className="w-full bg-green-600 hover:bg-green-500 text-white rounded-xl py-4 px-4 text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-green-600/20 active:scale-[0.98] flex items-center justify-center gap-2"
+                                        >
+                                            <DownloadCloud size={16} />
+                                            Install & Restart
+                                        </button>
+                                    )}
+
+                                    {updateProgress > 0 && updateProgress < 100 && updateStatus !== 'ready' && (
                                         <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden border border-white/5">
                                             <div
                                                 className="h-full bg-brand-primary transition-all duration-300"

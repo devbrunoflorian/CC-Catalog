@@ -40,7 +40,7 @@ let dbInitialized = false;
 
 
 // Configure Auto Updater
-autoUpdater.autoDownload = false;
+autoUpdater.autoDownload = true; // Enable automatic download when update is found
 autoUpdater.autoInstallOnAppQuit = true;
 
 autoUpdater.on('checking-for-update', () => {
@@ -70,13 +70,10 @@ autoUpdater.on('download-progress', (progress) => {
 autoUpdater.on('update-downloaded', (info) => {
     win?.webContents.send('update-status', {
         status: 'ready',
-        message: `Update v${info.version} ready! Restarting to install...`,
+        message: `Update v${info.version} ready! Restart to install.`,
         version: info.version
     });
-    // Give the user 2 seconds to see the message before restarting
-    setTimeout(() => {
-        autoUpdater.quitAndInstall();
-    }, 2000);
+    // We don't automatically restart here anymore, the user will trigger it from the UI or on quit
 });
 
 ipcMain.handle('download-update', async () => {
@@ -98,6 +95,10 @@ ipcMain.handle('check-for-updates', async () => {
     } catch (error: any) {
         return { success: false, message: error.message };
     }
+});
+
+ipcMain.handle('quit-and-install', () => {
+    autoUpdater.quitAndInstall();
 });
 
 ipcMain.handle('get-app-version', () => app.getVersion());
@@ -713,6 +714,14 @@ function createWindow() {
         win?.show();
         if (splashWin && !splashWin.isDestroyed()) {
             splashWin.close();
+        }
+
+        // Check for updates on startup if not in dev
+        if (!process.env.VITE_DEV_SERVER_URL) {
+            setTimeout(() => {
+                console.log('[MAIN] Initial update check...');
+                autoUpdater.checkForUpdatesAndNotify();
+            }, 3000); // Wait a few seconds after startup
         }
     });
 }

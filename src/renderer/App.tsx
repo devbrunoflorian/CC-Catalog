@@ -131,6 +131,10 @@ const DashboardContent: React.FC = () => {
         (window as any).electron.invoke('download-update');
     };
 
+    const handleInstallUpdate = () => {
+        (window as any).electron.invoke('quit-and-install');
+    };
+
     const handleScan = async () => {
         setScanning(true);
         try {
@@ -377,7 +381,10 @@ const DashboardContent: React.FC = () => {
                         {(updateStatus?.status === 'downloading' || updateStatus?.status === 'ready') && (
                             <button
                                 onClick={() => setShowUpdateModal(true)}
-                                className="flex items-center gap-2 px-3 py-2 bg-green-500/10 border border-green-500/30 rounded-xl text-xs font-bold text-green-400 transition-all"
+                                className={`flex items-center gap-2 px-3 py-2 border rounded-xl text-xs font-bold transition-all ${updateStatus.status === 'ready'
+                                        ? 'bg-green-500/20 border-green-500/50 text-green-400 hover:bg-green-500/30'
+                                        : 'bg-green-500/10 border-green-500/30 text-green-400'
+                                    }`}
                             >
                                 <DownloadCloud size={14} />
                                 {updateStatus.status === 'downloading' ? `Downloading... ${Math.round(updateStatus.progress || 0)}%` : 'Ready to Install'}
@@ -899,8 +906,15 @@ const DashboardContent: React.FC = () => {
                                         Download Complete!
                                     </div>
                                     <p className="text-slate-400 text-sm">
-                                        The application will restart automatically to install the update.
+                                        The application needs to restart to apply the update.
                                     </p>
+                                    <button
+                                        onClick={handleInstallUpdate}
+                                        className="w-full py-4 bg-green-600 hover:bg-green-500 text-white rounded-xl font-black uppercase tracking-widest text-sm shadow-xl shadow-green-600/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                                    >
+                                        <DownloadCloud size={18} />
+                                        Restart & Install
+                                    </button>
                                 </div>
                             )}
 
