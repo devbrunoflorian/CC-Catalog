@@ -227,7 +227,7 @@ const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger }) => {
                     ${draggingSetId === set.id ? 'opacity-50 scale-95' : ''}
                     ${dropTargetSetId === set.id && dropPosition === 'merge'
                             ? 'border-brand-primary bg-brand-primary/20 shadow-[0_0_30px_hsl(var(--brand-primary)/0.2)] scale-[1.02]'
-                            : 'border-white/5 hover:bg-white/[0.04] hover:border-brand-primary/30'}
+                            : 'border-white/5 hover:bg-white/[0.04] hover:border-brand-primary/30 hover-lift'}
                     ${dropTargetSetId === set.id && dropPosition === 'before' ? 'border-t-2 border-t-brand-primary pt-1' : ''}
                     ${dropTargetSetId === set.id && dropPosition === 'after' ? 'border-b-2 border-b-brand-primary pb-1' : ''}
                     ${editingSetId === set.id ? 'cursor-default opacity-100' : ''}
@@ -310,7 +310,7 @@ const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger }) => {
                                                 href={set.patreon_url || set.website_url || '#'}
                                                 target="_blank"
                                                 onClick={e => e.stopPropagation()}
-                                                className="hover:text-brand-primary hover:underline decoration-brand-primary/30 underline-offset-4 decoration-2 transition-all cursor-alias"
+                                                className="hover:text-brand-primary hover:underline decoration-brand-primary/30 underline-offset-4 decoration-2 transition-all cursor-alias hover-glow"
                                             >
                                                 {set.name}
                                             </a>
@@ -322,8 +322,8 @@ const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger }) => {
                                         <span>{countTotalItems(set, creatorDetails!.sets)} items</span>
                                         {(set.patreon_url || set.website_url || set.extra_links) && (
                                             <div className="flex gap-1 shrink-0">
-                                                {set.patreon_url && <a href={set.patreon_url} target="_blank" onClick={e => e.stopPropagation()} className="p-1 hover:bg-white/10 rounded-md text-slate-400 hover:text-[#FF424D] transition-colors" title="Patreon"><ExternalLink size={12} /></a>}
-                                                {set.website_url && <a href={set.website_url} target="_blank" onClick={e => e.stopPropagation()} className="p-1 hover:bg-white/10 rounded-md text-slate-400 hover:text-blue-400 transition-colors" title="Website"><Globe size={12} /></a>}
+                                                {set.patreon_url && <a href={set.patreon_url} target="_blank" onClick={e => e.stopPropagation()} className="p-1 hover:bg-white/10 rounded-md text-slate-400 hover:text-[#FF424D] transition-colors hover-glow" title="Patreon"><ExternalLink size={12} /></a>}
+                                                {set.website_url && <a href={set.website_url} target="_blank" onClick={e => e.stopPropagation()} className="p-1 hover:bg-white/10 rounded-md text-slate-400 hover:text-blue-400 transition-colors hover-glow" title="Website"><Globe size={12} /></a>}
                                                 {(() => {
                                                     try {
                                                         const extra = set.extra_links ? JSON.parse(set.extra_links) : [];
@@ -346,7 +346,7 @@ const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger }) => {
                                     <button onClick={() => setEditingSetId(null)} className="p-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 border border-red-500/20 transition-colors"><X size={16} /></button>
                                 </div>
                             ) : (
-                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0 bg-black/60 backdrop-blur-sm p-1 rounded-lg border border-white/10 shadow-xl">
+                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0 bg-black/60 backdrop-blur-sm p-1 rounded-lg border border-white/10 shadow-xl hover-glow">
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
@@ -1002,7 +1002,7 @@ const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger }) => {
                     </button>
                     <button
                         onClick={() => setShowNewCreatorInput(!showNewCreatorInput)}
-                        className={`p-3 border rounded-xl transition-all shadow-lg ${showNewCreatorInput ? 'bg-brand-primary text-white border-brand-primary' : 'bg-white/5 border-white/10 text-slate-400 hover:text-white hover:bg-white/10'}`}
+                        className={`p-3 border rounded-xl transition-all shadow-lg ${showNewCreatorInput ? 'bg-brand-primary text-white border-brand-primary' : 'bg-white/5 border-white/10 text-slate-400 hover:text-white hover:bg-white/10 hover-glow'}`}
                         title="Add Creator"
                     >
                         <UserPlus size={18} />
@@ -1037,7 +1037,7 @@ const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger }) => {
                             className={`p-4 rounded-xl cursor-pointer transition-all duration-300 border group relative overflow-hidden ${dropTargetCreatorId === creator.id ? 'bg-brand-primary/20 border-brand-primary border-dashed scale-[1.02] shadow-[0_0_20px_hsl(var(--brand-primary)/0.3)]' :
                                 selectedCreatorId === creator.id
                                     ? 'bg-brand-primary/10 border-brand-primary/50 shadow-[0_0_20px_hsl(var(--brand-primary)/0.2)]'
-                                    : 'bg-transparent border-transparent hover:bg-white/5 hover:border-brand-primary/30 hover:shadow-[0_0_15px_hsl(var(--brand-primary)/0.15)]'
+                                    : 'bg-transparent border-transparent hover:bg-white/5 hover:border-brand-primary/30 hover-lift'
                                 }`}
                         >
                             <div className={`font-bold transition-colors ${selectedCreatorId === creator.id ? 'text-brand-secondary' : 'text-slate-300 group-hover:text-slate-100'}`}>
@@ -1063,7 +1063,7 @@ const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger }) => {
                                         <h2 className="text-2xl font-bold bg-gradient-to-r from-slate-100 to-slate-400 bg-clip-text text-transparent">{creatorDetails.name}</h2>
                                         <button
                                             onClick={() => setEditingCreator(!editingCreator)}
-                                            className={`p-2 rounded-lg transition-all duration-300 ${editingCreator ? 'bg-brand-primary/20 text-brand-secondary' : 'text-slate-500 hover:text-white hover:bg-white/10'}`}
+                                            className={`p-2 rounded-lg transition-all duration-300 ${editingCreator ? 'bg-brand-primary/20 text-brand-secondary' : 'text-slate-500 hover:text-white hover:bg-white/10 hover-glow'}`}
                                         >
                                             {editingCreator ? <X size={18} /> : <Edit2 size={18} />}
                                         </button>
@@ -1164,7 +1164,7 @@ const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger }) => {
                                     </div>
                                     <button
                                         onClick={() => setShowNewSetInput(true)}
-                                        className="flex items-center gap-2 bg-brand-primary/10 hover:bg-brand-primary/20 border border-brand-primary/20 hover:border-brand-primary/40 px-4 py-2 rounded-lg text-xs font-bold text-brand-secondary transition-all shadow-lg shadow-brand-primary/5"
+                                        className="flex items-center gap-2 bg-brand-primary/10 hover:bg-brand-primary/20 border border-brand-primary/20 hover:border-brand-primary/40 px-4 py-2 rounded-lg text-xs font-bold text-brand-secondary transition-all shadow-lg shadow-brand-primary/5 hover-glow"
                                     >
                                         <FolderPlus size={16} /> New Set
                                     </button>

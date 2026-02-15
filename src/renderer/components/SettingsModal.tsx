@@ -76,8 +76,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                                     key={color.id}
                                     onClick={() => setThemeColor(color.id)}
                                     className={`relative p-4 rounded-xl border transition-all flex items-center justify-between group ${themeColor === color.id
-                                        ? 'border-brand-primary bg-brand-primary/10'
-                                        : 'border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/10'
+                                        ? 'border-brand-primary bg-brand-primary/10 shadow-[0_0_20px_rgba(var(--brand-primary),0.2)]'
+                                        : 'border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/10 hover-lift'
                                         }`}
                                 >
                                     <div className="flex items-center gap-3">
@@ -122,7 +122,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                                     const res = await (window as any).electron.invoke('export-csv');
                                     if (res.success) alert('Library exported successfully!');
                                 }}
-                                className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl py-3 px-4 text-sm font-medium text-slate-300 hover:text-white transition-all flex items-center justify-center gap-2"
+                                className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl py-3 px-4 text-sm font-medium text-slate-300 hover:text-white transition-all flex items-center justify-center gap-2 hover-glow"
                             >
                                 <span>Export CSV</span>
                             </button>
@@ -132,7 +132,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                                     const res = await (window as any).electron.invoke('import-csv');
                                     if (res.success) alert(`Library updated! ${res.count} lines processed.`);
                                 }}
-                                className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl py-3 px-4 text-sm font-medium text-slate-300 hover:text-white transition-all flex items-center justify-center gap-2"
+                                className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl py-3 px-4 text-sm font-medium text-slate-300 hover:text-white transition-all flex items-center justify-center gap-2 hover-glow"
                             >
                                 <span>Import CSV</span>
                             </button>
@@ -156,7 +156,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                                     href="https://github.com/devbrunoflorian"
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="p-2 bg-white/5 hover:bg-brand-primary/20 text-slate-400 hover:text-brand-secondary rounded-lg transition-all border border-white/5"
+                                    className="p-2 bg-white/5 hover:bg-brand-primary/20 text-slate-400 hover:text-brand-secondary rounded-lg transition-all border border-white/5 hover-glow"
                                 >
                                     <ExternalLink size={16} />
                                 </a>
@@ -171,7 +171,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                                     href="https://www.patreon.com/cw/Violetsimmer7"
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="p-2 bg-white/5 hover:bg-brand-primary/20 text-slate-400 hover:text-brand-secondary rounded-lg transition-all border border-white/5"
+                                    className="p-2 bg-white/5 hover:bg-brand-primary/20 text-slate-400 hover:text-brand-secondary rounded-lg transition-all border border-white/5 hover-glow"
                                 >
                                     <ExternalLink size={16} />
                                 </a>
@@ -190,7 +190,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                                     const res = await (window as any).electron.invoke('check-for-updates');
                                     if (!res.success) setUpdateStatus(res.message);
                                 }}
-                                className="w-full bg-brand-primary/10 hover:bg-brand-primary/20 border border-brand-primary/20 rounded-xl py-3 px-4 text-xs font-bold text-brand-secondary transition-all flex items-center justify-center gap-2 uppercase tracking-widest"
+                                className="w-full bg-brand-primary/10 hover:bg-brand-primary/20 border border-brand-primary/20 rounded-xl py-3 px-4 text-xs font-bold text-brand-secondary transition-all flex items-center justify-center gap-2 uppercase tracking-widest hover-glow"
                             >
                                 <Check size={14} />
                                 Check for Updates
@@ -205,7 +205,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                                     {updateStatus === 'ready' && (
                                         <button
                                             onClick={handleInstallUpdate}
-                                            className="w-full bg-green-600 hover:bg-green-500 text-white rounded-xl py-4 px-4 text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-green-600/20 active:scale-[0.98] flex items-center justify-center gap-2"
+                                            className="w-full bg-green-600 hover:bg-green-500 text-white rounded-xl py-4 px-4 text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-green-600/20 active:scale-[0.98] flex items-center justify-center gap-2 hover-glow"
                                         >
                                             <DownloadCloud size={16} />
                                             Install & Restart

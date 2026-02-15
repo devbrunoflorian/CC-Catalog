@@ -310,7 +310,7 @@ const ScanConfirmationModal: React.FC<ScanConfirmationModalProps> = ({ analysis,
                         const originalMatch = analysis.matches.find(m => m.foundName === decision.originalName);
 
                         return (
-                            <div key={decision.originalName} className={`bg-white/5 border rounded-2xl transition-all ${isExpanded ? 'border-brand-primary/30 bg-white/[0.07]' : 'border-white/5 hover:bg-white/[0.08]'}`}>
+                            <div key={decision.originalName} className={`bg-white/5 border rounded-2xl transition-all ${isExpanded ? 'border-brand-primary/30 bg-white/[0.07]' : 'border-white/5 hover:bg-white/[0.08] hover-lift'}`}>
                                 {/* Header / Summary Row */}
                                 <div className="p-4 flex items-center gap-4 cursor-pointer" onClick={() => toggleExpand(decision.originalName)}>
                                     <div className={`p-1 rounded-lg transition-transform ${isExpanded ? 'rotate-90' : ''}`}><ChevronRight size={20} className="text-slate-500" /></div>
@@ -352,13 +352,13 @@ const ScanConfirmationModal: React.FC<ScanConfirmationModalProps> = ({ analysis,
                                             <div className="flex gap-2">
                                                 <button
                                                     onClick={() => handleCreatorActionChange(decision.originalName, 'new')}
-                                                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all border ${decision.action === 'new' ? 'bg-brand-primary text-white border-brand-primary' : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10'}`}
+                                                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all border ${decision.action === 'new' ? 'bg-brand-primary text-white border-brand-primary' : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10 hover-glow'}`}
                                                 >
                                                     Create New
                                                 </button>
                                                 <button
                                                     onClick={() => handleCreatorActionChange(decision.originalName, 'existing')}
-                                                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all border ${decision.action === 'existing' ? 'bg-brand-primary text-white border-brand-primary' : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10'}`}
+                                                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all border ${decision.action === 'existing' ? 'bg-brand-primary text-white border-brand-primary' : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10 hover-glow'}`}
                                                 >
                                                     Use Existing
                                                 </button>
@@ -528,14 +528,14 @@ const ScanConfirmationModal: React.FC<ScanConfirmationModalProps> = ({ analysis,
                         <div className="flex bg-black/40 p-1 rounded-xl border border-white/5">
                             <button
                                 onClick={() => setCategory('buildings')}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${category === 'buildings' ? 'bg-brand-primary text-white shadow-lg shadow-brand-primary/20' : 'text-slate-500 hover:text-slate-300'}`}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${category === 'buildings' ? 'bg-brand-primary text-white shadow-lg shadow-brand-primary/20' : 'text-slate-500 hover:text-slate-300 hover-glow'}`}
                             >
                                 <Package size={14} />
                                 Buildings
                             </button>
                             <button
                                 onClick={() => setCategory('uploads')}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${category === 'uploads' ? 'bg-brand-primary text-white shadow-lg shadow-brand-primary/20' : 'text-slate-500 hover:text-slate-300'}`}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${category === 'uploads' ? 'bg-brand-primary text-white shadow-lg shadow-brand-primary/20' : 'text-slate-500 hover:text-slate-300 hover-glow'}`}
                             >
                                 <Upload size={14} />
                                 Uploads
@@ -546,13 +546,13 @@ const ScanConfirmationModal: React.FC<ScanConfirmationModalProps> = ({ analysis,
                     <div className="flex gap-4 flex-grow justify-end">
                         <button
                             onClick={onCancel}
-                            className="px-8 py-4 bg-white/5 hover:bg-white/10 rounded-xl font-bold text-slate-400 transition-all border border-white/5"
+                            className="px-8 py-4 bg-white/5 hover:bg-white/10 rounded-xl font-bold text-slate-400 transition-all border border-white/5 hover-glow"
                         >
                             Cancel
                         </button>
                         <button
                             onClick={processFinalConfirm}
-                            className="px-12 py-4 bg-brand-primary hover:bg-brand-secondary text-white rounded-xl font-black uppercase tracking-widest text-sm shadow-xl shadow-brand-primary/20 transition-all active:scale-[0.98]"
+                            className="px-12 py-4 bg-brand-primary hover:bg-brand-secondary text-white rounded-xl font-black uppercase tracking-widest text-sm shadow-xl shadow-brand-primary/20 transition-all active:scale-[0.98] hover-glow"
                         >
                             Import results
                         </button>

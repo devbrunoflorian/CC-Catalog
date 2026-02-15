@@ -669,6 +669,64 @@ ipcMain.handle('get-credits', async () => {
     });
 });
 
+ipcMain.handle('get-dashboard-metrics', async () => {
+    if (!dbInitialized) throw new Error('Database not initialized');
+    const db = getDb();
+
+    // 1. Total Counts
+    const totalItems = db.select({ count: sql<number>`count(*)` }).from(ccItems).get()?.count || 0;
+    const totalCreators = db.select({ count: sql<number>`count(*)` }).from(creators).get()?.count || 0;
+    const totalSets = db.select({ count: sql<number>`count(*)` }).from(ccSets).get()?.count || 0;
+
+    // 2. Potential Duplicates
+    // We want the count of files that appear more than once
+    // Native SQLite query for speed
+    const duplicateResult = db.get<{ count: number }>(sql`
+        SELECT COUNT(*) as count FROM (
+            SELECT file_name FROM cc_items GROUP BY file_name HAVING COUNT(*) > 1
+        )
+    `);
+    const duplicateCount = duplicateResult ? duplicateResult.count : 0;
+
+    // 3. Missing Metadata (Creators with no patreon AND no website)
+    // We check for null or empty string
+    const missingMetadataResult = db.get<{ count: number }>(sql`
+        SELECT COUNT(*) as count FROM creators 
+        WHERE (patreon_url IS NULL OR patreon_url = '') 
+        AND (website_url IS NULL OR website_url = '')
+    `);
+    const missingMetadataCount = missingMetadataResult ? missingMetadataResult.count : 0;
+
+    // 4. Broken Sets (Sets with no items AND no children sets)
+    // Parent folders (organizational sets) are valid even if empty of items
+    const brokenSetsResult = db.get<{ count: number }>(sql`
+        SELECT COUNT(*) as count FROM cc_sets 
+        WHERE id NOT IN (SELECT DISTINCT cc_set_id FROM cc_items)
+        AND id NOT IN (SELECT DISTINCT parent_id FROM cc_sets WHERE parent_id IS NOT NULL)
+    `);
+    const brokenSetsCount = brokenSetsResult ? brokenSetsResult.count : 0;
+
+    // 5. Calculate Health Score
+    // Base 100
+    // -2 per duplicate type (not per instance, but per distinct filename that involves duplicates)
+    // -5 per creator with missing metadata
+    // -1 per broken set
+    let score = 100;
+    score -= (duplicateCount * 2);
+    score -= (missingMetadataCount * 5);
+    score -= (brokenSetsCount * 1);
+
+    return {
+        totalItems,
+        totalCreators,
+        totalSets,
+        duplicateCount,
+        missingMetadataCount,
+        brokenSetsCount,
+        healthScore: Math.max(0, Math.floor(score)) // Ensure not negative
+    };
+});
+
 process.env.DIST = join(__dirname, '../..');
 process.env.VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL'] || '';
 

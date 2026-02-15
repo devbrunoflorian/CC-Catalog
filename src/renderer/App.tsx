@@ -17,7 +17,11 @@ import {
     ChevronLeft,
     Bell,
     DownloadCloud,
-    HelpCircle
+    HelpCircle,
+    Activity,
+    FileWarning,
+    Layers,
+    AlertTriangle
 } from 'lucide-react';
 import CreatorsView from './components/CreatorsView';
 import HistoryView from './components/HistoryView';
@@ -47,6 +51,16 @@ interface ScanLog {
     fileName: string;
     status: string;
     scannedFiles?: string;
+}
+
+interface HealthMetrics {
+    totalItems: number;
+    totalCreators: number;
+    totalSets: number;
+    duplicateCount: number;
+    missingMetadataCount: number;
+    brokenSetsCount: number;
+    healthScore: number;
 }
 
 const countTotalItems = (set: any, allSets: any[]): number => {
@@ -81,6 +95,7 @@ const DashboardContent: React.FC = () => {
     const [editForm, setEditForm] = useState({ patreon_url: '', website_url: '' });
 
     const [history, setHistory] = useState<ScanLog[]>([]);
+    const [healthMetrics, setHealthMetrics] = useState<HealthMetrics | null>(null);
 
     const loadCredits = async () => {
         const data = await (window as any).electron.invoke('get-credits');
@@ -90,6 +105,15 @@ const DashboardContent: React.FC = () => {
     const loadHistory = async () => {
         const data = await (window as any).electron.invoke('get-history');
         setHistory(data);
+    };
+
+    const loadHealthMetrics = async () => {
+        try {
+            const data = await (window as any).electron.invoke('get-dashboard-metrics');
+            setHealthMetrics(data);
+        } catch (error) {
+            console.error('Failed to load health metrics:', error);
+        }
     };
 
     // State to trigger history refresh
@@ -107,6 +131,7 @@ const DashboardContent: React.FC = () => {
     useEffect(() => {
         loadCredits();
         loadHistory();
+        loadHealthMetrics();
     }, [historyUpdateTrigger]);
 
     useEffect(() => {
@@ -311,7 +336,7 @@ const DashboardContent: React.FC = () => {
                 <nav className="space-y-2 flex-grow px-2">
                     <button
                         onClick={() => setCurrentView('dashboard')}
-                        className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-xl font-medium transition-all ${currentView === 'dashboard' ? 'bg-brand-primary/10 text-brand-secondary' : 'hover:text-slate-200 hover:bg-white/5'}`}
+                        className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-xl font-medium transition-all ${currentView === 'dashboard' ? 'bg-brand-primary/10 text-brand-secondary shadow-[0_0_15px_rgba(var(--brand-primary),0.2)]' : 'hover-glow hover:bg-white/5'}`}
                         title={isSidebarCollapsed ? "Dashboard" : ""}
                     >
                         <Package size={20} />
@@ -319,7 +344,7 @@ const DashboardContent: React.FC = () => {
                     </button>
                     <button
                         onClick={() => setCurrentView('creators')}
-                        className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-xl font-medium transition-all ${currentView === 'creators' ? 'bg-brand-primary/10 text-brand-secondary' : 'hover:text-slate-200 hover:bg-white/5'}`}
+                        className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-xl font-medium transition-all ${currentView === 'creators' ? 'bg-brand-primary/10 text-brand-secondary shadow-[0_0_15px_rgba(var(--brand-primary),0.2)]' : 'hover-glow hover:bg-white/5'}`}
                         title={isSidebarCollapsed ? "Creators" : ""}
                     >
                         <CreditCard size={20} />
@@ -327,7 +352,7 @@ const DashboardContent: React.FC = () => {
                     </button>
                     <button
                         onClick={() => setCurrentView('history')}
-                        className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-xl font-medium transition-all ${currentView === 'history' ? 'bg-brand-primary/10 text-brand-secondary' : 'hover:text-slate-200 hover:bg-white/5'}`}
+                        className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-xl font-medium transition-all ${currentView === 'history' ? 'bg-brand-primary/10 text-brand-secondary shadow-[0_0_15px_rgba(var(--brand-primary),0.2)]' : 'hover-glow hover:bg-white/5'}`}
                         title={isSidebarCollapsed ? "History" : ""}
                     >
                         <History size={20} />
@@ -335,7 +360,7 @@ const DashboardContent: React.FC = () => {
                     </button>
                     <button
                         onClick={() => setCurrentView('faq')}
-                        className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-xl font-medium transition-all ${currentView === 'faq' ? 'bg-brand-primary/10 text-brand-secondary' : 'hover:text-slate-200 hover:bg-white/5'}`}
+                        className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-xl font-medium transition-all ${currentView === 'faq' ? 'bg-brand-primary/10 text-brand-secondary shadow-[0_0_15px_rgba(var(--brand-primary),0.2)]' : 'hover-glow hover:bg-white/5'}`}
                         title={isSidebarCollapsed ? "Help & FAQ" : ""}
                     >
                         <HelpCircle size={20} />
@@ -346,7 +371,7 @@ const DashboardContent: React.FC = () => {
                 <div className="pt-6 border-t border-border-subtle p-2">
                     <button
                         onClick={() => setShowSettings(true)}
-                        className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 hover:text-slate-200 rounded-xl font-medium transition-all hover:bg-white/5`}
+                        className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-xl font-medium transition-all hover-glow hover:bg-white/5`}
                         title={isSidebarCollapsed ? "Settings" : ""}
                     >
                         <Settings size={20} />
@@ -359,7 +384,7 @@ const DashboardContent: React.FC = () => {
             <main className="flex-grow flex flex-col overflow-hidden">
                 {/* Header */}
                 <header className="h-20 border-b border-border-subtle px-8 flex items-center justify-between glass-effect shrink-0">
-                    <div className="flex items-center gap-4 bg-white/5 px-4 py-2 rounded-xl border border-white/5 w-96">
+                    <div className="flex items-center gap-4 bg-white/5 px-4 py-2 rounded-xl border border-white/5 w-96 transition-all focus-within:shadow-[0_0_20px_rgba(var(--brand-primary),0.2)] focus-within:border-brand-primary/50">
                         <Search size={18} className="text-slate-500" />
                         <input
                             type="text"
@@ -382,8 +407,8 @@ const DashboardContent: React.FC = () => {
                             <button
                                 onClick={() => setShowUpdateModal(true)}
                                 className={`flex items-center gap-2 px-3 py-2 border rounded-xl text-xs font-bold transition-all ${updateStatus.status === 'ready'
-                                        ? 'bg-green-500/20 border-green-500/50 text-green-400 hover:bg-green-500/30'
-                                        : 'bg-green-500/10 border-green-500/30 text-green-400'
+                                    ? 'bg-green-500/20 border-green-500/50 text-green-400 hover:bg-green-500/30'
+                                    : 'bg-green-500/10 border-green-500/30 text-green-400'
                                     }`}
                             >
                                 <DownloadCloud size={14} />
@@ -406,7 +431,7 @@ const DashboardContent: React.FC = () => {
                                     alert('No scan history available to generate a report. Please scan a ZIP file first.');
                                 }
                             }}
-                            className="flex items-center gap-2 px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-semibold transition-all"
+                            className="flex items-center gap-2 px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-semibold transition-all hover-glow"
                         >
                             <Clipboard size={18} />
                             Generate Report
@@ -414,7 +439,7 @@ const DashboardContent: React.FC = () => {
                         <button
                             onClick={handleScan}
                             disabled={scanning}
-                            className={`px-6 py-2.5 rounded-xl text-white text-sm font-bold transition-all flex items-center gap-2 shadow-lg shadow-brand-primary/20 ${scanning ? 'bg-slate-700 cursor-not-allowed' : 'bg-brand-primary hover:bg-brand-secondary active:scale-95'
+                            className={`px-6 py-2.5 rounded-xl text-white text-sm font-bold transition-all flex items-center gap-2 shadow-lg shadow-brand-primary/20 ${scanning ? 'bg-slate-700 cursor-not-allowed' : 'bg-brand-primary hover:bg-brand-secondary active:scale-95 hover:shadow-[0_0_25px_rgba(var(--brand-primary),0.6)]'
                                 }`}
                         >
                             <Upload size={18} />
@@ -434,6 +459,108 @@ const DashboardContent: React.FC = () => {
                                         <div className="w-1.5 h-6 bg-brand-primary rounded-full" />
                                         Your CC Library
                                     </h2>
+
+                                    {/* Health Metrics Grid */}
+                                    {healthMetrics && (
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                                            {/* Health Score */}
+                                            <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col justify-between hover-lift transition-colors">
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <div className={`p-2 rounded-lg ${healthMetrics.healthScore > 80 ? 'bg-green-500/10 text-green-400' : healthMetrics.healthScore > 50 ? 'bg-yellow-500/10 text-yellow-400' : 'bg-red-500/10 text-red-400'}`}>
+                                                        <Activity size={20} />
+                                                    </div>
+                                                    <span className={`text-xl font-black ${healthMetrics.healthScore > 80 ? 'text-green-400' : healthMetrics.healthScore > 50 ? 'text-yellow-400' : 'text-red-400'}`}>
+                                                        {healthMetrics.healthScore}%
+                                                    </span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Health Score</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Total Items */}
+                                            <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col justify-between hover-lift transition-colors">
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400">
+                                                        <Package size={20} />
+                                                    </div>
+                                                    <span className="text-xl font-black text-slate-200">{healthMetrics.totalItems}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Total Items</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Creators */}
+                                            <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col justify-between hover-lift transition-colors">
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <div className="p-2 rounded-lg bg-purple-500/10 text-purple-400">
+                                                        <UserPlus size={20} />
+                                                    </div>
+                                                    <span className="text-xl font-black text-slate-200">{healthMetrics.totalCreators}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Creators</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Sets */}
+                                            <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col justify-between hover-lift transition-colors">
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <div className="p-2 rounded-lg bg-pink-500/10 text-pink-400">
+                                                        <Layers size={20} />
+                                                    </div>
+                                                    <span className="text-xl font-black text-slate-200">{healthMetrics.totalSets}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Total Sets</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {healthMetrics && (healthMetrics.duplicateCount > 0 || healthMetrics.missingMetadataCount > 0 || healthMetrics.brokenSetsCount > 0) && (
+                                        <div className="mb-8 space-y-3">
+                                            {healthMetrics.duplicateCount > 0 && (
+                                                <div className="bg-red-500/5 border border-red-500/20 p-4 rounded-xl flex items-center gap-4">
+                                                    <div className="p-2 bg-red-500/10 rounded-full text-red-500 shrink-0">
+                                                        <FileWarning size={20} />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-red-400 font-bold text-sm">Potential Duplicates Found</h4>
+                                                        <p className="text-red-400/70 text-xs">Found {healthMetrics.duplicateCount} items with identical filenames. This may affect game performance.</p>
+                                                    </div>
+                                                    <button className="ml-auto text-xs bg-red-500/10 hover:bg-red-500/20 text-red-400 px-3 py-1.5 rounded-lg font-bold transition-colors">
+                                                        Review
+                                                    </button>
+                                                </div>
+                                            )}
+
+                                            {healthMetrics.missingMetadataCount > 0 && (
+                                                <div className="bg-yellow-500/5 border border-yellow-500/20 p-4 rounded-xl flex items-center gap-4">
+                                                    <div className="p-2 bg-yellow-500/10 rounded-full text-yellow-500 shrink-0">
+                                                        <AlertTriangle size={20} />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-yellow-400 font-bold text-sm">Missing Metadata</h4>
+                                                        <p className="text-yellow-400/70 text-xs">{healthMetrics.missingMetadataCount} creators are missing Patreon or Website links.</p>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {healthMetrics.brokenSetsCount > 0 && (
+                                                <div className="bg-orange-500/5 border border-orange-500/20 p-4 rounded-xl flex items-center gap-4">
+                                                    <div className="p-2 bg-orange-500/10 rounded-full text-orange-500 shrink-0">
+                                                        <Package size={20} />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-orange-400 font-bold text-sm">Empty Sets Detected</h4>
+                                                        <p className="text-orange-400/70 text-xs">{healthMetrics.brokenSetsCount} sets have no items assigned to them.</p>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
 
                                     {credits.length === 0 ? (
                                         <div className="glass-effect rounded-2xl p-20 text-center space-y-4 border-2 border-dashed border-white/5">
@@ -507,33 +634,36 @@ const DashboardContent: React.FC = () => {
                                         Last Scan Activity
                                     </h2>
 
-                                    <div className="glass-effect rounded-2xl p-6 border border-border-subtle min-h-[500px] flex flex-col">
+                                    <div className="glass-mica rounded-[2rem] p-6 border border-white/5 min-h-[500px] flex flex-col relative overflow-hidden">
+                                        {/* Ambient Glow Background Effect */}
+                                        <div className="absolute top-0 right-0 w-64 h-64 bg-brand-primary/5 blur-[100px] -mr-32 -mt-32 pointer-events-none" />
+
                                         {results.length === 0 ? (
-                                            <div className="flex-grow flex flex-col items-center justify-center text-slate-600 italic">
-                                                <History size={48} className="mb-4 opacity-5 shrink-0" />
+                                            <div className="flex-grow flex flex-col items-center justify-center text-slate-600 italic relative z-10">
+                                                <History size={48} className="mb-4 opacity-10 shrink-0" />
                                                 <span className="opacity-40">No recent scan activity</span>
                                             </div>
                                         ) : (
-                                            <div className="flex flex-col h-full overflow-hidden">
-                                                <div className="flex items-center justify-between mb-6 shrink-0">
-                                                    <div className="flex items-center gap-2 text-green-400 text-sm font-bold">
-                                                        <CheckCircle2 size={18} />
-                                                        Successfully identified {results.length} items
+                                            <div className="flex flex-col h-full overflow-hidden relative z-10">
+                                                <div className="flex items-center justify-between mb-6 shrink-0 px-1">
+                                                    <div className="flex items-center gap-2 text-green-400 text-xs font-bold uppercase tracking-widest">
+                                                        <CheckCircle2 size={16} />
+                                                        Found {results.length} items
                                                     </div>
                                                     <button
                                                         onClick={() => handleOpenReportOptions({ type: 'scan', contextName: 'Last Scan', items: results.map((r: any) => r.fileName) })}
-                                                        className="text-xs bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg border border-white/5 transition-colors flex items-center gap-2 font-medium text-slate-300 hover:text-white"
+                                                        className="text-[10px] bg-white/5 hover:bg-white/10 px-3 py-2 rounded-xl border border-white/5 transition-all flex items-center gap-2 font-black uppercase tracking-widest text-slate-400 hover:text-white hover-glow"
                                                     >
-                                                        <Clipboard size={14} />
-                                                        Create Scan Report
+                                                        <Clipboard size={12} />
+                                                        Create Report
                                                     </button>
                                                 </div>
                                                 <div className="space-y-3 overflow-y-auto custom-scrollbar flex-grow pr-1">
                                                     {results.map((item: CCItem, idx: number) => (
-                                                        <div key={idx} className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col gap-1 hover:bg-white/[0.08] transition-colors group">
-                                                            <span className="text-[10px] text-brand-secondary font-bold uppercase tracking-wider">{item.creatorName}</span>
-                                                            <span className="text-sm text-slate-300 truncate font-medium">{item.fileName}</span>
-                                                            <span className="text-[10px] text-slate-600 mt-1">Set: {item.setName}</span>
+                                                        <div key={idx} className="glass-card p-4 rounded-2xl flex flex-col gap-1 transition-all group hover-lift border-white/5">
+                                                            <span className="text-[10px] text-brand-secondary font-black uppercase tracking-widest opacity-80 group-hover:opacity-100">{item.creatorName}</span>
+                                                            <span className="text-sm text-slate-200 truncate font-semibold group-hover:text-white">{item.fileName}</span>
+                                                            <span className="text-[10px] text-slate-500 font-medium mt-1">Set: <span className="text-slate-400">{item.setName}</span></span>
                                                         </div>
                                                     ))}
                                                 </div>
