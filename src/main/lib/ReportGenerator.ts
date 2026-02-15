@@ -113,12 +113,12 @@ export class ReportGenerator {
 
                 if (setEntries.length > 0) {
                     if (creatorLine) {
-                        report += `${creatorLine}: ${setEntries.join(', ')}\n`;
+                        report += `- ${creatorLine}: ${setEntries.join(', ')}\n`;
                     } else {
                         report += `${setEntries.join(', ')}\n`;
                     }
                 } else if (creatorLine) {
-                    report += `${creatorLine}\n`;
+                    report += `- ${creatorLine}\n`;
                 }
 
                 if (options.includeItems) {
@@ -248,12 +248,12 @@ export class ReportGenerator {
 
                 if (setEntries.length > 0) {
                     if (creatorHtml) {
-                        html += `<div>${creatorHtml}: ${setEntries.join(', ')}</div>\n`;
+                        html += `<div>• ${creatorHtml}: ${setEntries.join(', ')}</div>\n`;
                     } else {
                         html += `<div>${setEntries.join(', ')}</div>\n`;
                     }
                 } else if (creatorHtml) {
-                    html += `<div>${creatorHtml}</div>\n`;
+                    html += `<div>• ${creatorHtml}</div>\n`;
                 }
 
                 if (options.includeItems) {

@@ -18,14 +18,21 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 
         (window as any).electron.invoke('get-app-version').then(setAppVersion);
 
-        const handleStatus = (status: string) => setUpdateStatus(status);
-        const handleProgress = (progress: number) => setUpdateProgress(progress);
+        const handleStatus = (_event: any, data: any) => {
+            if (typeof data === 'string') {
+                setUpdateStatus(data);
+            } else if (data && data.message) {
+                setUpdateStatus(data.message);
+            }
+        };
+        const handleProgress = (_event: any, progress: number) => setUpdateProgress(progress);
 
-        (window as any).electron.receive('update-status', handleStatus);
-        (window as any).electron.receive('update-progress', handleProgress);
+        (window as any).electron.on('update-status', handleStatus);
+        (window as any).electron.on('update-progress', handleProgress);
 
         return () => {
-            // Cleanup would need a removeListener in preload, but assuming app stays open
+            (window as any).electron.removeAllListeners('update-status');
+            (window as any).electron.removeAllListeners('update-progress');
         };
     }, [isOpen]);
 
