@@ -233,7 +233,9 @@ export class ZipScanner {
             let currentParentId: string | null = null;
             let currentSetId: string | undefined;
 
-            for (const setName of item.setHierarchy) {
+            const hierarchy = Array.isArray(item.setHierarchy) ? item.setHierarchy : [];
+
+            for (const setName of hierarchy) {
                 const cacheKey: string = `${creatorId}:${currentParentId}:${setName.toLowerCase()}`;
 
                 if (setCache.has(cacheKey)) {
