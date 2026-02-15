@@ -449,7 +449,7 @@ const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger }) => {
                             <div className="min-h-[40px]">
                                 {sortedItems.map(item => (
                                     <div
-                                        key={item.id}
+                                        key={`item-${item.id}`}
                                         className={`px-4 py-2.5 flex items-center gap-3 text-sm transition-all cursor-grab active:cursor-grabbing border-l-[3px] select-none group/item ${selectedItems.has(item.id)
                                             ? 'border-brand-primary bg-brand-primary/10 text-white'
                                             : 'border-transparent text-slate-400 hover:bg-white/5 hover:text-slate-200'

@@ -201,10 +201,12 @@ export class ZipScanner {
                 const existing = db.select({ id: creators.id }).from(creators).where(eq(creators.name, match.foundName)).get();
                 if (existing) {
                     creatorMap.set(match.foundName, existing.id);
+                    console.log(`[ZipScanner] Mapped creator '${match.foundName}' to existing ID: ${existing.id}`);
                 } else {
                     const newId = randomUUID();
                     db.insert(creators).values({ id: newId, name: match.foundName }).run();
                     creatorMap.set(match.foundName, newId);
+                    console.log(`[ZipScanner] Created new creator '${match.foundName}' with ID: ${newId}`);
                 }
             }
         }
@@ -212,6 +214,8 @@ export class ZipScanner {
         // Cache sets to minimize DB hits: creatorId:parentSetId:setName -> setId
         // Using a simple Map key strategy
         const setCache = new Map<string, string>();
+
+        console.log(`[ZipScanner] Processing ${results.length} items. Creator Map size: ${creatorMap.size}`);
 
         for (const item of results) {
             let creatorId = creatorMap.get(item.creatorName);
@@ -221,10 +225,12 @@ export class ZipScanner {
                 const existing = db.select({ id: creators.id }).from(creators).where(eq(creators.name, item.creatorName)).get();
                 if (existing) {
                     creatorId = existing.id;
+                    console.log(`[ZipScanner] Fallback: Found existing creator '${item.creatorName}' (ID: ${existing.id})`);
                 } else {
                     const newId = randomUUID();
                     db.insert(creators).values({ id: newId, name: item.creatorName }).onConflictDoNothing().run();
                     creatorId = newId;
+                    console.log(`[ZipScanner] Fallback: Created new creator '${item.creatorName}' (ID: ${newId})`);
                 }
                 creatorMap.set(item.creatorName, creatorId);
             }
@@ -254,36 +260,46 @@ export class ZipScanner {
 
                 let set = db.select({ id: ccSets.id }).from(ccSets).where(setQuery).get();
 
+                if (set) {
+                    console.log(`[ZipScanner] Found existing set in DB '${setName}' (ID: ${set.id})`);
+                }
+
                 if (!set) {
                     const newSetId = randomUUID();
+                    console.log(`[ZipScanner] Creating NEW set '${setName}' for creator '${item.creatorName}' (Parent: ${currentParentId})`);
                     db.insert(ccSets).values({
                         id: newSetId,
                         creatorId: creatorId,
                         name: setName,
-                        parentId: currentParentId
+                        parentId: currentParentId,
+                        updatedAt: sql`CURRENT_TIMESTAMP`
                     }).run();
                     set = { id: newSetId };
+                } else {
+                    // console.log(`[ZipScanner] Found existing set '${setName}' (ID: ${set.id})`);
                 }
 
+                const cacheKeySuccess = `${creatorId}:${currentParentId}:${setName.toLowerCase()}`;
+                setCache.set(cacheKeySuccess, set.id);
                 currentParentId = set.id;
                 currentSetId = set.id;
-                setCache.set(cacheKey, set.id);
             }
 
-            if (!currentSetId) continue; // Should not happen
+            if (currentSetId) {
+                // Insert Item
+                const itemExists = db.select({ id: ccItems.id })
+                    .from(ccItems)
+                    .where(sql`${ccItems.ccSetId} = ${currentSetId} AND lower(${ccItems.fileName}) = lower(${item.fileName})`)
+                    .get();
 
-            // Insert Item
-            const itemExists = db.select({ id: ccItems.id })
-                .from(ccItems)
-                .where(sql`${ccItems.ccSetId} = ${currentSetId} AND lower(${ccItems.fileName}) = lower(${item.fileName})`)
-                .get();
-
-            if (!itemExists) {
-                db.insert(ccItems).values({
-                    id: randomUUID(),
-                    ccSetId: currentSetId,
-                    fileName: item.fileName
-                }).run();
+                if (!itemExists) {
+                    db.insert(ccItems).values({
+                        id: randomUUID(),
+                        ccSetId: currentSetId,
+                        fileName: item.fileName,
+                        updatedAt: sql`CURRENT_TIMESTAMP`
+                    }).run();
+                }
             }
         }
 

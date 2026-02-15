@@ -21,13 +21,10 @@ import HistoryView from './components/HistoryView';
 import logo from './assets/logo.png';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import SettingsModal from './components/SettingsModal';
-import ScanConfirmationModal from './components/ScanConfirmationModal';
+import ScanConfirmationModal, { ScanAnalysis, ScanResult, CreatorMatch } from './components/ScanConfirmationModal';
 
-interface CCItem {
-    creatorName: string;
-    setName: string;
-    fileName: string;
-}
+// CCItem is aliased to ScanResult for backward compatibility in this file if needed, or we just use ScanResult
+type CCItem = ScanResult;
 
 interface Creator {
     id: string;
@@ -35,20 +32,6 @@ interface Creator {
     patreon_url: string;
     website_url: string;
     sets: any[];
-}
-
-interface CreatorMatch {
-    foundName: string;
-    existingName?: string;
-    existingId?: string;
-    similarity: number;
-    needsConfirmation: boolean;
-}
-
-interface ScanAnalysis {
-    results: CCItem[];
-    matches: CreatorMatch[];
-    filePath?: string;
 }
 
 interface ScanLog {
@@ -128,7 +111,7 @@ const DashboardContent: React.FC = () => {
         }
     };
 
-    const handleConfirmScan = async (finalAnalysis?: ScanAnalysis) => {
+    const handleConfirmScan = async (finalAnalysis: ScanAnalysis) => {
         const targetAnalysis = finalAnalysis || analysis;
         if (!targetAnalysis) return;
 

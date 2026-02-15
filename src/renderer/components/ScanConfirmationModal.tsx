@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { AlertCircle, Link2, UserPlus, X, ChevronDown, ChevronRight, Check, Search, FolderPlus, ArrowRight } from 'lucide-react';
 
-interface CreatorMatch {
+export interface CreatorMatch {
     foundName: string;
     existingName?: string;
     existingId?: string;
@@ -9,13 +9,14 @@ interface CreatorMatch {
     needsConfirmation: boolean;
 }
 
-interface ScanResult { // Renamed from CCItem to match logic
+export interface ScanResult { // Renamed from CCItem to match logic
     creatorName: string;
-    setName: string;
+    setHierarchy: string[];
     fileName: string;
+    setName?: string; // Legacy
 }
 
-interface ScanAnalysis {
+export interface ScanAnalysis {
     results: ScanResult[];
     matches: CreatorMatch[];
     filePath?: string;
@@ -59,7 +60,8 @@ const ScanConfirmationModal: React.FC<ScanConfirmationModalProps> = ({ analysis,
         const setsByCreator: Record<string, Set<string>> = {};
         analysis.results.forEach(item => {
             if (!setsByCreator[item.creatorName]) setsByCreator[item.creatorName] = new Set();
-            setsByCreator[item.creatorName].add(item.setName);
+            const rootSet = item.setHierarchy && item.setHierarchy.length > 0 ? item.setHierarchy[0] : 'Unsorted';
+            setsByCreator[item.creatorName].add(rootSet);
         });
 
         // Loop through matches (creators)
@@ -228,14 +230,11 @@ const ScanConfirmationModal: React.FC<ScanConfirmationModalProps> = ({ analysis,
             const items = analysis.results.filter(r => r.creatorName === d.originalName);
 
             items.forEach(item => {
-                const setDec = d.setDecisions[item.setName];
+                const rootSet = item.setHierarchy && item.setHierarchy.length > 0 ? item.setHierarchy[0] : 'Unsorted';
+                const setDec = d.setDecisions[rootSet];
                 // Determine final set name
-                // If existing set selected, we actually need to look up its name match?
-                // The current backend usually creates sets by name. 
-                // If we map to an existing set, we should use that set's NAME as the target name
-                // because the backend logic does: checks if set exists by name for that creator.
 
-                let finalSetName = item.setName;
+                let finalSetName = rootSet; // Default to current root set name
                 if (setDec) {
                     if (setDec.action === 'existing' && setDec.targetId) {
                         const existingSets = getSetsForSelectedCreator(d.targetId); // Only if mapping to existing creator
@@ -249,6 +248,7 @@ const ScanConfirmationModal: React.FC<ScanConfirmationModalProps> = ({ analysis,
                 finalResults.push({
                     creatorName: finalCreatorName,
                     setName: finalSetName,
+                    setHierarchy: [finalSetName],
                     fileName: item.fileName
                 });
             });
@@ -358,7 +358,7 @@ const ScanConfirmationModal: React.FC<ScanConfirmationModalProps> = ({ analysis,
                                                     <span className="text-sm text-slate-400 whitespace-nowrap w-24">Creator Name:</span>
                                                     <input
                                                         className="bg-bg-dark border border-white/10 rounded-lg px-3 py-2 text-sm text-white w-full outline-none focus:border-brand-primary/50"
-                                                        value={decision.targetName}
+                                                        value={decision.targetName || ''}
                                                         onChange={(e) => setDecisions(prev => ({
                                                             ...prev,
                                                             [decision.originalName]: { ...prev[decision.originalName], targetName: e.target.value }
@@ -389,8 +389,8 @@ const ScanConfirmationModal: React.FC<ScanConfirmationModalProps> = ({ analysis,
                                         {/* Sets Matrix */}
                                         <div className="space-y-3">
                                             <span className="text-xs font-bold uppercase text-slate-400 px-1">Sets to Import</span>
-                                            {Object.values(decision.setDecisions).map(setDec => (
-                                                <div key={setDec.originalName} className="flex items-center gap-4 bg-white/5 p-3 rounded-xl border border-white/5">
+                                            {Object.values(decision.setDecisions).map((setDec, idx) => (
+                                                <div key={`set-dec-${setDec.originalName}-${idx}`} className="flex items-center gap-4 bg-white/5 p-3 rounded-xl border border-white/5">
                                                     <div className="w-1/3 min-w-[200px]">
                                                         <div className="text-[10px] text-slate-500 uppercase">Found Set</div>
                                                         <div className="text-sm font-medium text-slate-200 truncate" title={setDec.originalName}>{setDec.originalName}</div>
@@ -430,7 +430,7 @@ const ScanConfirmationModal: React.FC<ScanConfirmationModalProps> = ({ analysis,
                                                                 <option value="new">+ Create New Set</option>
                                                                 <optgroup label="Existing Sets">
                                                                     {getSetsForSelectedCreator(decision.targetId).map((s: any) => (
-                                                                        <option key={s.id} value={s.id}>{s.name}</option>
+                                                                        <option key={`set-${s.id}`} value={s.id}>{s.name}</option>
                                                                     ))}
                                                                 </optgroup>
                                                             </select>
@@ -445,7 +445,7 @@ const ScanConfirmationModal: React.FC<ScanConfirmationModalProps> = ({ analysis,
                                                             <input
                                                                 className="bg-bg-dark border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white w-48 outline-none focus:border-brand-primary/50"
                                                                 placeholder="Set Name"
-                                                                value={setDec.targetName}
+                                                                value={setDec.targetName || ''}
                                                                 onChange={(e) => setDecisions(prev => ({
                                                                     ...prev,
                                                                     [decision.originalName]: {
