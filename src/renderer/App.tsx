@@ -61,9 +61,11 @@ const DashboardContent: React.FC = () => {
     const [scanning, setScanning] = useState(false);
     const [results, setResults] = useState<CCItem[]>([]);
     const [credits, setCredits] = useState<Creator[]>([]);
-    const [showReport, setShowReport] = useState(false);
     const [reportText, setReportText] = useState('');
+    const [htmlReportText, setHtmlReportText] = useState('');
+    const [showReport, setShowReport] = useState(false);
     const [copying, setCopying] = useState(false);
+    const [copyingHTML, setCopyingHTML] = useState(false);
 
     // Scan Confirmation State
     const [analysis, setAnalysis] = useState<ScanAnalysis | null>(null);
@@ -159,8 +161,13 @@ const DashboardContent: React.FC = () => {
             config.filterFileNames = reportSource.items;
         }
 
-        const text = await (window as any).electron.invoke('generate-report', config);
+        const [text, html] = await Promise.all([
+            (window as any).electron.invoke('generate-report', config),
+            (window as any).electron.invoke('generate-report-html', config)
+        ]);
+
         setReportText(text);
+        setHtmlReportText(html);
         setShowReportOptions(false);
         setShowReport(true);
     };
@@ -179,6 +186,28 @@ const DashboardContent: React.FC = () => {
         navigator.clipboard.writeText(reportText);
         setCopying(true);
         setTimeout(() => setCopying(false), 2000);
+    };
+
+    const copyHTMLToClipboard = async () => {
+        try {
+            const typeHTML = 'text/html';
+            const typeText = 'text/plain';
+            const blobHTML = new Blob([htmlReportText], { type: typeHTML });
+            const blobText = new Blob([reportText], { type: typeText });
+
+            const data = [new ClipboardItem({
+                [typeHTML]: blobHTML,
+                [typeText]: blobText
+            })];
+
+            await navigator.clipboard.write(data);
+            setCopyingHTML(true);
+            setTimeout(() => setCopyingHTML(false), 2000);
+        } catch (err) {
+            console.error('Failed to copy HTML:', err);
+            // Fallback to just text if ClipboardItem fails
+            navigator.clipboard.writeText(htmlReportText);
+        }
     };
 
     // Calculate background color based on theme
@@ -700,29 +729,48 @@ const DashboardContent: React.FC = () => {
                                     <span className="text-[10px] font-bold text-slate-500 bg-bg-card px-2 py-1 rounded-full uppercase tracking-widest border border-white/5">Markdown Format</span>
                                 </div>
                             </div>
-                            <div className="flex gap-4">
-                                <button
-                                    onClick={copyToClipboard}
-                                    className={`flex-grow flex items-center justify-center gap-3 py-5 rounded-[1.25rem] font-black uppercase tracking-widest text-sm transition-all active:scale-[0.98] ${copying ? 'bg-green-600 text-white shadow-lg shadow-green-600/20' : 'bg-brand-primary hover:bg-brand-secondary text-white shadow-xl shadow-brand-primary/20 hover:shadow-brand-primary/30'
-                                        }`}
-                                >
-                                    {copying ? (
-                                        <>
-                                            <CheckCircle2 size={20} />
-                                            Copied to Clipboard!
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Clipboard size={20} />
-                                            Copy Markdown
-                                        </>
-                                    )}
-                                </button>
+                            <div className="flex flex-col gap-4">
+                                <div className="flex gap-4">
+                                    <button
+                                        onClick={copyHTMLToClipboard}
+                                        className={`flex-grow flex items-center justify-center gap-3 py-5 rounded-[1.25rem] font-black uppercase tracking-widest text-sm transition-all active:scale-[0.98] ${copyingHTML ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'bg-brand-secondary hover:bg-brand-primary text-white shadow-xl shadow-brand-secondary/20 hover:shadow-brand-secondary/30'
+                                            }`}
+                                    >
+                                        {copyingHTML ? (
+                                            <>
+                                                <CheckCircle2 size={20} />
+                                                HTML Copied!
+                                            </>
+                                        ) : (
+                                            <>
+                                                <ExternalLink size={20} />
+                                                Copy HTML (Patreon)
+                                            </>
+                                        )}
+                                    </button>
+                                    <button
+                                        onClick={copyToClipboard}
+                                        className={`flex-grow flex items-center justify-center gap-3 py-5 rounded-[1.25rem] font-black uppercase tracking-widest text-sm transition-all active:scale-[0.98] ${copying ? 'bg-green-600 text-white shadow-lg shadow-green-600/20' : 'bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10 shadow-xl'
+                                            }`}
+                                    >
+                                        {copying ? (
+                                            <>
+                                                <CheckCircle2 size={20} />
+                                                Markdown Copied!
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Clipboard size={20} />
+                                                Copy Markdown
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
                                 <button
                                     onClick={() => setShowReport(false)}
-                                    className="px-10 py-5 bg-white/5 hover:bg-white/10 rounded-xl font-bold text-slate-400 transition-all border border-white/5 hover:text-slate-200"
+                                    className="w-full py-5 bg-white/5 hover:bg-red-500/10 rounded-xl font-black uppercase tracking-widest text-xs text-slate-500 transition-all border border-white/5 hover:text-red-400 hover:border-red-500/20"
                                 >
-                                    Close
+                                    Close Report
                                 </button>
                             </div>
                         </div>
