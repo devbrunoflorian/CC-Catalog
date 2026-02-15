@@ -111,7 +111,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ onReport }) => {
             key={log.id}
             draggable
             onDragStart={(e) => handleDragStart(e, log.id)}
-            className="relative group overflow-hidden bg-white/[0.03] backdrop-blur-md border border-border-subtle hover:border-brand-primary/30 rounded-xl p-3 flex justify-between items-center transition-all duration-300 hover:bg-white/[0.06] cursor-grab active:cursor-grabbing mb-2 last:mb-0"
+            className="relative group overflow-hidden bg-white/[0.03] backdrop-blur-md border border-border-subtle hover:border-brand-primary/30 rounded-xl p-3 flex justify-between items-center transition-all duration-300 hover:bg-white/[0.06] cursor-grab active:cursor-grabbing mb-2 last:mb-0 hover-lift"
         >
             <div className="flex items-center gap-3 relative z-10 overflow-hidden">
                 <div className={`w-8 h-8 shrink-0 rounded-lg flex items-center justify-center ${log.status === 'success' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
@@ -134,7 +134,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ onReport }) => {
                 {log.scannedFiles && log.scannedFiles.length > 2 && (
                     <button
                         onClick={() => onReport && onReport(log)}
-                        className="p-1.5 bg-brand-primary/10 hover:bg-brand-primary text-brand-primary hover:text-white rounded-lg transition-all"
+                        className="p-1.5 bg-brand-primary/10 hover:bg-brand-primary text-brand-primary hover:text-white rounded-lg transition-all hover-glow"
                         title="Generate Report"
                     >
                         <Hash size={14} />
@@ -142,7 +142,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ onReport }) => {
                 )}
                 <button
                     onClick={(e) => handleDelete(log.id, e)}
-                    className="p-1.5 bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white rounded-lg transition-all"
+                    className="p-1.5 bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white rounded-lg transition-all hover-glow"
                     title="Delete"
                 >
                     <Trash2 size={14} />
@@ -167,7 +167,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ onReport }) => {
             >
                 <div
                     onClick={() => toggleFolder(folder.id)}
-                    className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-white/5 transition-colors group"
+                    className="flex items-center justify-between p-3.5 cursor-pointer hover:bg-white/5 transition-colors group hover-glow"
                 >
                     <div className="flex items-center gap-3">
                         <div className="text-brand-secondary group-hover:text-brand-primary transition-colors">
@@ -249,7 +249,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ onReport }) => {
                     </div>
                     <button
                         onClick={() => setShowNewFolderInput({ show: true, category })}
-                        className="p-2 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-brand-primary rounded-xl transition-all border border-white/5"
+                        className="p-2 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-brand-primary rounded-xl transition-all border border-white/5 hover-glow"
                         title="New Folder"
                     >
                         <FolderPlus size={18} />
@@ -272,7 +272,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ onReport }) => {
                             <div className="flex gap-2">
                                 <button
                                     onClick={handleCreateFolder}
-                                    className="flex-grow py-2 bg-brand-primary text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-brand-secondary transition-colors"
+                                    className="flex-grow py-2 bg-brand-primary text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-brand-secondary transition-colors hover-glow"
                                 >
                                     Create
                                 </button>

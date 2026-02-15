@@ -336,7 +336,7 @@ const DashboardContent: React.FC = () => {
                 <nav className="space-y-2 flex-grow px-2">
                     <button
                         onClick={() => setCurrentView('dashboard')}
-                        className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-xl font-medium transition-all ${currentView === 'dashboard' ? 'bg-brand-primary/10 text-brand-secondary' : 'hover:text-slate-200 hover:bg-white/5'}`}
+                        className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-xl font-medium transition-all ${currentView === 'dashboard' ? 'bg-brand-primary/10 text-brand-secondary shadow-[0_0_15px_rgba(var(--brand-primary),0.2)]' : 'hover-glow hover:bg-white/5'}`}
                         title={isSidebarCollapsed ? "Dashboard" : ""}
                     >
                         <Package size={20} />
@@ -344,7 +344,7 @@ const DashboardContent: React.FC = () => {
                     </button>
                     <button
                         onClick={() => setCurrentView('creators')}
-                        className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-xl font-medium transition-all ${currentView === 'creators' ? 'bg-brand-primary/10 text-brand-secondary' : 'hover:text-slate-200 hover:bg-white/5'}`}
+                        className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-xl font-medium transition-all ${currentView === 'creators' ? 'bg-brand-primary/10 text-brand-secondary shadow-[0_0_15px_rgba(var(--brand-primary),0.2)]' : 'hover-glow hover:bg-white/5'}`}
                         title={isSidebarCollapsed ? "Creators" : ""}
                     >
                         <CreditCard size={20} />
@@ -352,7 +352,7 @@ const DashboardContent: React.FC = () => {
                     </button>
                     <button
                         onClick={() => setCurrentView('history')}
-                        className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-xl font-medium transition-all ${currentView === 'history' ? 'bg-brand-primary/10 text-brand-secondary' : 'hover:text-slate-200 hover:bg-white/5'}`}
+                        className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-xl font-medium transition-all ${currentView === 'history' ? 'bg-brand-primary/10 text-brand-secondary shadow-[0_0_15px_rgba(var(--brand-primary),0.2)]' : 'hover-glow hover:bg-white/5'}`}
                         title={isSidebarCollapsed ? "History" : ""}
                     >
                         <History size={20} />
@@ -360,7 +360,7 @@ const DashboardContent: React.FC = () => {
                     </button>
                     <button
                         onClick={() => setCurrentView('faq')}
-                        className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-xl font-medium transition-all ${currentView === 'faq' ? 'bg-brand-primary/10 text-brand-secondary' : 'hover:text-slate-200 hover:bg-white/5'}`}
+                        className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-xl font-medium transition-all ${currentView === 'faq' ? 'bg-brand-primary/10 text-brand-secondary shadow-[0_0_15px_rgba(var(--brand-primary),0.2)]' : 'hover-glow hover:bg-white/5'}`}
                         title={isSidebarCollapsed ? "Help & FAQ" : ""}
                     >
                         <HelpCircle size={20} />
@@ -371,7 +371,7 @@ const DashboardContent: React.FC = () => {
                 <div className="pt-6 border-t border-border-subtle p-2">
                     <button
                         onClick={() => setShowSettings(true)}
-                        className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 hover:text-slate-200 rounded-xl font-medium transition-all hover:bg-white/5`}
+                        className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-xl font-medium transition-all hover-glow hover:bg-white/5`}
                         title={isSidebarCollapsed ? "Settings" : ""}
                     >
                         <Settings size={20} />
@@ -384,7 +384,7 @@ const DashboardContent: React.FC = () => {
             <main className="flex-grow flex flex-col overflow-hidden">
                 {/* Header */}
                 <header className="h-20 border-b border-border-subtle px-8 flex items-center justify-between glass-effect shrink-0">
-                    <div className="flex items-center gap-4 bg-white/5 px-4 py-2 rounded-xl border border-white/5 w-96">
+                    <div className="flex items-center gap-4 bg-white/5 px-4 py-2 rounded-xl border border-white/5 w-96 transition-all focus-within:shadow-[0_0_20px_rgba(var(--brand-primary),0.2)] focus-within:border-brand-primary/50">
                         <Search size={18} className="text-slate-500" />
                         <input
                             type="text"
@@ -431,7 +431,7 @@ const DashboardContent: React.FC = () => {
                                     alert('No scan history available to generate a report. Please scan a ZIP file first.');
                                 }
                             }}
-                            className="flex items-center gap-2 px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-semibold transition-all"
+                            className="flex items-center gap-2 px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-semibold transition-all hover-glow"
                         >
                             <Clipboard size={18} />
                             Generate Report
@@ -439,7 +439,7 @@ const DashboardContent: React.FC = () => {
                         <button
                             onClick={handleScan}
                             disabled={scanning}
-                            className={`px-6 py-2.5 rounded-xl text-white text-sm font-bold transition-all flex items-center gap-2 shadow-lg shadow-brand-primary/20 ${scanning ? 'bg-slate-700 cursor-not-allowed' : 'bg-brand-primary hover:bg-brand-secondary active:scale-95'
+                            className={`px-6 py-2.5 rounded-xl text-white text-sm font-bold transition-all flex items-center gap-2 shadow-lg shadow-brand-primary/20 ${scanning ? 'bg-slate-700 cursor-not-allowed' : 'bg-brand-primary hover:bg-brand-secondary active:scale-95 hover:shadow-[0_0_25px_rgba(var(--brand-primary),0.6)]'
                                 }`}
                         >
                             <Upload size={18} />
@@ -464,7 +464,7 @@ const DashboardContent: React.FC = () => {
                                     {healthMetrics && (
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
                                             {/* Health Score */}
-                                            <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col justify-between hover:bg-white/10 transition-colors">
+                                            <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col justify-between hover-lift transition-colors">
                                                 <div className="flex justify-between items-start mb-2">
                                                     <div className={`p-2 rounded-lg ${healthMetrics.healthScore > 80 ? 'bg-green-500/10 text-green-400' : healthMetrics.healthScore > 50 ? 'bg-yellow-500/10 text-yellow-400' : 'bg-red-500/10 text-red-400'}`}>
                                                         <Activity size={20} />
@@ -479,7 +479,7 @@ const DashboardContent: React.FC = () => {
                                             </div>
 
                                             {/* Total Items */}
-                                            <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col justify-between hover:bg-white/10 transition-colors">
+                                            <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col justify-between hover-lift transition-colors">
                                                 <div className="flex justify-between items-start mb-2">
                                                     <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400">
                                                         <Package size={20} />
@@ -492,7 +492,7 @@ const DashboardContent: React.FC = () => {
                                             </div>
 
                                             {/* Creators */}
-                                            <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col justify-between hover:bg-white/10 transition-colors">
+                                            <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col justify-between hover-lift transition-colors">
                                                 <div className="flex justify-between items-start mb-2">
                                                     <div className="p-2 rounded-lg bg-purple-500/10 text-purple-400">
                                                         <UserPlus size={20} />
@@ -505,7 +505,7 @@ const DashboardContent: React.FC = () => {
                                             </div>
 
                                             {/* Sets */}
-                                            <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col justify-between hover:bg-white/10 transition-colors">
+                                            <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col justify-between hover-lift transition-colors">
                                                 <div className="flex justify-between items-start mb-2">
                                                     <div className="p-2 rounded-lg bg-pink-500/10 text-pink-400">
                                                         <Layers size={20} />

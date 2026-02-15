@@ -12,7 +12,7 @@ const FAQItem: React.FC<FAQItemProps> = ({ question, answer, icon, isOpenByDefau
     const [isOpen, setIsOpen] = useState(isOpenByDefault);
 
     return (
-        <div className={`border border-white/5 rounded-2xl overflow-hidden transition-all ${isOpen ? 'bg-white/[0.07] border-brand-primary/30 shadow-lg shadow-brand-primary/5' : 'bg-white/[0.03] hover:bg-white/[0.05]'}`}>
+        <div className={`border border-white/5 rounded-2xl overflow-hidden transition-all ${isOpen ? 'bg-white/[0.07] border-brand-primary/30 shadow-lg shadow-brand-primary/5' : 'bg-white/[0.03] hover:bg-white/[0.05] hover-lift'}`}>
             <button
                 onClick={() => setIsOpen(!isOpen)}
                 className="w-full flex items-center justify-between p-5 text-left transition-colors"
@@ -155,7 +155,7 @@ const FAQView: React.FC = () => {
                                     href="https://discord.gg/vsZQYxGb"
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="flex items-center gap-3 p-3 bg-[#5865F2]/10 border border-[#5865F2]/20 rounded-xl hover:bg-[#5865F2]/20 transition-all group"
+                                    className="flex items-center gap-3 p-3 bg-[#5865F2]/10 border border-[#5865F2]/20 rounded-xl hover:bg-[#5865F2]/20 transition-all group hover-glow"
                                 >
                                     <div className="w-8 h-8 bg-[#5865F2] rounded-lg flex items-center justify-center text-white">
                                         <MessageCircle size={18} />
@@ -170,7 +170,7 @@ const FAQView: React.FC = () => {
                                     href="https://x.com/violetsimmer7"
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all group"
+                                    className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all group hover-glow"
                                 >
                                     <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center text-white border border-white/10">
                                         <Twitter size={16} />
@@ -188,7 +188,7 @@ const FAQView: React.FC = () => {
                                     href="https://www.patreon.com/cw/Violetsimmer7"
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="flex items-center gap-3 p-4 bg-brand-primary/10 border border-brand-primary/20 rounded-2xl hover:bg-brand-primary/20 transition-all group"
+                                    className="flex items-center gap-3 p-4 bg-brand-primary/10 border border-brand-primary/20 rounded-2xl hover:bg-brand-primary/20 transition-all group hover-lift"
                                 >
                                     <div className="w-10 h-10 bg-brand-primary rounded-xl flex items-center justify-center text-white shadow-lg shadow-brand-primary/20">
                                         <Heart size={20} fill="white" />
