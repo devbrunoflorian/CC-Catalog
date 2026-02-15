@@ -50,6 +50,7 @@ export const ccSets = sqliteTable('cc_sets', {
 export const scanHistoryFolders = sqliteTable('scan_history_folders', {
     id: text('id').primaryKey(),
     name: text('name').notNull(),
+    category: text('category').default('uploads'), // 'buildings' or 'uploads'
     createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
 });
 
@@ -65,6 +66,7 @@ export const scanHistory = sqliteTable('scan_history', {
     status: text('status').default('success'),
     scannedFiles: text('scanned_files'), // JSON string of file names
     folderId: text('folder_id').references(() => scanHistoryFolders.id),
+    category: text('category').default('uploads'), // 'buildings' or 'uploads'
 });
 
 /**

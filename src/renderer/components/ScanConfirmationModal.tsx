@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { AlertCircle, Link2, UserPlus, X, ChevronDown, ChevronRight, Check, Search, FolderPlus, ArrowRight } from 'lucide-react';
+import { AlertCircle, Link2, UserPlus, X, ChevronDown, ChevronRight, Check, Search, FolderPlus, ArrowRight, Package, Upload } from 'lucide-react';
 
 export interface CreatorMatch {
     foundName: string;
@@ -28,6 +28,7 @@ export interface ScanAnalysis {
     matches: CreatorMatch[];
     duplicates?: DuplicateItem[];
     filePath?: string;
+    category?: 'buildings' | 'uploads';
 }
 
 interface ScanConfirmationModalProps {
@@ -61,6 +62,7 @@ const ScanConfirmationModal: React.FC<ScanConfirmationModalProps> = ({ analysis,
     const [decisions, setDecisions] = useState<Record<string, CreatorDecision>>({});
     const [expandedCreators, setExpandedCreators] = useState<Set<string>>(new Set());
     const [showDuplicates, setShowDuplicates] = useState(false);
+    const [category, setCategory] = useState<'buildings' | 'uploads'>('uploads');
 
     useEffect(() => {
         const initialDecisions: Record<string, CreatorDecision> = {};
@@ -275,7 +277,8 @@ const ScanConfirmationModal: React.FC<ScanConfirmationModalProps> = ({ analysis,
         onConfirm({
             ...analysis,
             results: finalResults,
-            matches: finalMatches
+            matches: finalMatches,
+            category: category
         });
     };
 
@@ -519,19 +522,41 @@ const ScanConfirmationModal: React.FC<ScanConfirmationModalProps> = ({ analysis,
                     </div>
                 )}
 
-                <div className="p-8 border-t border-border-subtle bg-white/5 shrink-0 flex gap-4">
-                    <button
-                        onClick={processFinalConfirm}
-                        className="flex-grow py-4 bg-brand-primary hover:bg-brand-secondary text-white rounded-xl font-black uppercase tracking-widest text-sm shadow-xl shadow-brand-primary/20 transition-all active:scale-[0.98]"
-                    >
-                        Keep Changes & Import
-                    </button>
-                    <button
-                        onClick={onCancel}
-                        className="px-8 py-4 bg-white/5 hover:bg-white/10 rounded-xl font-bold text-slate-400 transition-all border border-white/5"
-                    >
-                        Cancel
-                    </button>
+                <div className="px-8 py-6 border-t border-border-subtle bg-white/5 shrink-0 flex items-center justify-between gap-8">
+                    <div className="flex flex-col gap-2">
+                        <span className="text-[10px] uppercase font-bold text-slate-500">Save results to:</span>
+                        <div className="flex bg-black/40 p-1 rounded-xl border border-white/5">
+                            <button
+                                onClick={() => setCategory('buildings')}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${category === 'buildings' ? 'bg-brand-primary text-white shadow-lg shadow-brand-primary/20' : 'text-slate-500 hover:text-slate-300'}`}
+                            >
+                                <Package size={14} />
+                                Buildings
+                            </button>
+                            <button
+                                onClick={() => setCategory('uploads')}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${category === 'uploads' ? 'bg-brand-primary text-white shadow-lg shadow-brand-primary/20' : 'text-slate-500 hover:text-slate-300'}`}
+                            >
+                                <Upload size={14} />
+                                Uploads
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-4 flex-grow justify-end">
+                        <button
+                            onClick={onCancel}
+                            className="px-8 py-4 bg-white/5 hover:bg-white/10 rounded-xl font-bold text-slate-400 transition-all border border-white/5"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={processFinalConfirm}
+                            className="px-12 py-4 bg-brand-primary hover:bg-brand-secondary text-white rounded-xl font-black uppercase tracking-widest text-sm shadow-xl shadow-brand-primary/20 transition-all active:scale-[0.98]"
+                        >
+                            Import results
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

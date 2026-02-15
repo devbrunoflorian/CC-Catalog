@@ -16,7 +16,8 @@ import {
     ChevronRight,
     ChevronLeft,
     Bell,
-    DownloadCloud
+    DownloadCloud,
+    HelpCircle
 } from 'lucide-react';
 import CreatorsView from './components/CreatorsView';
 import HistoryView from './components/HistoryView';
@@ -25,6 +26,7 @@ import { ThemeProvider, useTheme } from './context/ThemeContext';
 import SettingsModal from './components/SettingsModal';
 import ScanConfirmationModal, { ScanAnalysis, ScanResult, CreatorMatch } from './components/ScanConfirmationModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import FAQView from './components/FAQView';
 
 // CCItem is aliased to ScanResult for backward compatibility in this file if needed, or we just use ScanResult
 type CCItem = ScanResult;
@@ -59,7 +61,7 @@ const countTotalItems = (set: any, allSets: any[]): number => {
 const DashboardContent: React.FC = () => {
     const { themeColor, opacity } = useTheme();
     const [showSettings, setShowSettings] = useState(false);
-    const [currentView, setCurrentView] = useState<'dashboard' | 'creators' | 'history'>('dashboard');
+    const [currentView, setCurrentView] = useState<'dashboard' | 'creators' | 'history' | 'faq'>('dashboard');
 
     const [scanning, setScanning] = useState(false);
     const [results, setResults] = useState<CCItem[]>([]);
@@ -154,7 +156,8 @@ const DashboardContent: React.FC = () => {
         await (window as any).electron.invoke('confirm-scan', {
             results: targetAnalysis.results,
             matches: targetAnalysis.matches,
-            filePath: targetAnalysis.filePath // Pass stored file path
+            filePath: targetAnalysis.filePath, // Pass stored file path
+            category: targetAnalysis.category // Pass category from modal
         });
 
         setResults(targetAnalysis.results);
@@ -325,6 +328,14 @@ const DashboardContent: React.FC = () => {
                     >
                         <History size={20} />
                         {!isSidebarCollapsed && <span>History</span>}
+                    </button>
+                    <button
+                        onClick={() => setCurrentView('faq')}
+                        className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-xl font-medium transition-all ${currentView === 'faq' ? 'bg-brand-primary/10 text-brand-secondary' : 'hover:text-slate-200 hover:bg-white/5'}`}
+                        title={isSidebarCollapsed ? "Help & FAQ" : ""}
+                    >
+                        <HelpCircle size={20} />
+                        {!isSidebarCollapsed && <span>Help & FAQ</span>}
                     </button>
                 </nav>
 
@@ -560,6 +571,12 @@ const DashboardContent: React.FC = () => {
                                 });
                             }}
                         />
+                    </div>
+                )}
+                {/* FAQ View */}
+                {currentView === 'faq' && (
+                    <div className="p-8 overflow-y-auto custom-scrollbar flex-grow">
+                        <FAQView />
                     </div>
                 )}
             </main>

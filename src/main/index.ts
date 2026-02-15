@@ -366,14 +366,13 @@ ipcMain.handle('scan-zip', async () => {
     }
 });
 
-ipcMain.handle('confirm-scan', async (_, { results, matches, filePath }: any) => {
+ipcMain.handle('confirm-scan', async (_, { results, matches, filePath, category }: any) => {
     if (!dbInitialized) throw new Error('Database not initialized');
 
     // Process results
     await ZipScanner.processScanResults(results, matches);
 
-    // Log directly to DB here or pass filePath if needed
-    // Let's extract filename from path if passed, or just "Unknown"
+    // Log directly to DB here
     const fileName = filePath ? basename(filePath, extname(filePath)) : "Unknown Scan";
 
     const db = getDb();
@@ -381,9 +380,10 @@ ipcMain.handle('confirm-scan', async (_, { results, matches, filePath }: any) =>
         id: randomUUID(),
         fileName: fileName,
         itemsFound: results.length,
-        creatorsFound: matches.filter((m: any) => m.similarity === 0 && !m.existingId).length, // New creators aprox.
+        creatorsFound: matches.filter((m: any) => m.similarity === 0 && !m.existingId).length,
         status: 'success',
-        scannedFiles: JSON.stringify(results.map((r: any) => r.fileName))
+        scannedFiles: JSON.stringify(results.map((r: any) => r.fileName)),
+        category: category || 'uploads'
     }).run();
 
     saveDatabase();
@@ -807,6 +807,20 @@ if (!gotTheLock) {
                 // Column likely exists
             }
 
+            try {
+                const db = getDb();
+                db.run(sql`ALTER TABLE scan_history ADD COLUMN category TEXT DEFAULT 'uploads'`);
+            } catch (e) {
+                // Column likely exists
+            }
+
+            try {
+                const db = getDb();
+                db.run(sql`ALTER TABLE scan_history_folders ADD COLUMN category TEXT DEFAULT 'uploads'`);
+            } catch (e) {
+                // Column likely exists
+            }
+
             // --- RECREATED MIGRATION FOR CC_SETS UNIQUE CONSTRAINT ---
             try {
                 const { getRawDb } = await import('./db/database.js');
@@ -895,6 +909,26 @@ ipcMain.handle('get-history-folders', async () => {
     return db.select().from(scanHistoryFolders).orderBy(desc(scanHistoryFolders.createdAt)).all();
 });
 
+ipcMain.handle('get-history-folders-by-category', async (_, category) => {
+    if (!dbInitialized) throw new Error('Database not initialized');
+    const db = getDb();
+    return db.select()
+        .from(scanHistoryFolders)
+        .where(eq(scanHistoryFolders.category, category))
+        .orderBy(desc(scanHistoryFolders.createdAt))
+        .all();
+});
+
+ipcMain.handle('get-history-by-category', async (_, category) => {
+    if (!dbInitialized) throw new Error('Database not initialized');
+    const db = getDb();
+    return db.select()
+        .from(scanHistory)
+        .where(eq(scanHistory.category, category))
+        .orderBy(desc(scanHistory.scanDate))
+        .all();
+});
+
 ipcMain.handle('move-set', async (_, { setId, targetParentId, targetCreatorId }) => {
     console.log(`[IPC] move-set called: setId=${setId}, targetParentId=${targetParentId}, targetCreatorId=${targetCreatorId}`);
     if (!dbInitialized) throw new Error('Database not initialized');
@@ -939,26 +973,51 @@ ipcMain.handle('move-set', async (_, { setId, targetParentId, targetCreatorId })
     return { success: true };
 });
 
-ipcMain.handle('create-history-folder', async (_, name) => {
+ipcMain.handle('create-history-folder', async (_, { name, category }) => {
     if (!dbInitialized) throw new Error('Database not initialized');
     const db = getDb();
     const newId = randomUUID();
     db.insert(scanHistoryFolders).values({
         id: newId,
         name,
+        category: category || 'uploads',
         createdAt: sql`CURRENT_TIMESTAMP`
     }).run();
     saveDatabase();
-    return { id: newId, name };
+    return { id: newId, name, category: category || 'uploads' };
 });
 
-ipcMain.handle('move-history-item', async (_, { historyId, folderId }) => {
+ipcMain.handle('move-history-item', async (_, { historyId, folderId, category }) => {
     if (!dbInitialized) throw new Error('Database not initialized');
     const db = getDb();
+
+    const updateData: any = { folderId: folderId };
+    if (category) updateData.category = category;
+
     db.update(scanHistory)
-        .set({ folderId: folderId }) // can be null to move to root
+        .set(updateData)
         .where(eq(scanHistory.id, historyId))
         .run();
+    saveDatabase();
+    return { success: true };
+});
+
+ipcMain.handle('move-history-folder', async (_, { folderId, category }) => {
+    if (!dbInitialized) throw new Error('Database not initialized');
+    const db = getDb();
+
+    // Update folder category
+    db.update(scanHistoryFolders)
+        .set({ category })
+        .where(eq(scanHistoryFolders.id, folderId))
+        .run();
+
+    // Update all items in folder
+    db.update(scanHistory)
+        .set({ category })
+        .where(eq(scanHistory.folderId, folderId))
+        .run();
+
     saveDatabase();
     return { success: true };
 });
