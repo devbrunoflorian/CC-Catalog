@@ -17,7 +17,11 @@ import {
     ChevronLeft,
     Bell,
     DownloadCloud,
-    HelpCircle
+    HelpCircle,
+    Activity,
+    FileWarning,
+    Layers,
+    AlertTriangle
 } from 'lucide-react';
 import CreatorsView from './components/CreatorsView';
 import HistoryView from './components/HistoryView';
@@ -47,6 +51,16 @@ interface ScanLog {
     fileName: string;
     status: string;
     scannedFiles?: string;
+}
+
+interface HealthMetrics {
+    totalItems: number;
+    totalCreators: number;
+    totalSets: number;
+    duplicateCount: number;
+    missingMetadataCount: number;
+    brokenSetsCount: number;
+    healthScore: number;
 }
 
 const countTotalItems = (set: any, allSets: any[]): number => {
@@ -81,6 +95,7 @@ const DashboardContent: React.FC = () => {
     const [editForm, setEditForm] = useState({ patreon_url: '', website_url: '' });
 
     const [history, setHistory] = useState<ScanLog[]>([]);
+    const [healthMetrics, setHealthMetrics] = useState<HealthMetrics | null>(null);
 
     const loadCredits = async () => {
         const data = await (window as any).electron.invoke('get-credits');
@@ -90,6 +105,15 @@ const DashboardContent: React.FC = () => {
     const loadHistory = async () => {
         const data = await (window as any).electron.invoke('get-history');
         setHistory(data);
+    };
+
+    const loadHealthMetrics = async () => {
+        try {
+            const data = await (window as any).electron.invoke('get-dashboard-metrics');
+            setHealthMetrics(data);
+        } catch (error) {
+            console.error('Failed to load health metrics:', error);
+        }
     };
 
     // State to trigger history refresh
@@ -107,6 +131,7 @@ const DashboardContent: React.FC = () => {
     useEffect(() => {
         loadCredits();
         loadHistory();
+        loadHealthMetrics();
     }, [historyUpdateTrigger]);
 
     useEffect(() => {
@@ -382,8 +407,8 @@ const DashboardContent: React.FC = () => {
                             <button
                                 onClick={() => setShowUpdateModal(true)}
                                 className={`flex items-center gap-2 px-3 py-2 border rounded-xl text-xs font-bold transition-all ${updateStatus.status === 'ready'
-                                        ? 'bg-green-500/20 border-green-500/50 text-green-400 hover:bg-green-500/30'
-                                        : 'bg-green-500/10 border-green-500/30 text-green-400'
+                                    ? 'bg-green-500/20 border-green-500/50 text-green-400 hover:bg-green-500/30'
+                                    : 'bg-green-500/10 border-green-500/30 text-green-400'
                                     }`}
                             >
                                 <DownloadCloud size={14} />
@@ -434,6 +459,108 @@ const DashboardContent: React.FC = () => {
                                         <div className="w-1.5 h-6 bg-brand-primary rounded-full" />
                                         Your CC Library
                                     </h2>
+
+                                    {/* Health Metrics Grid */}
+                                    {healthMetrics && (
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                                            {/* Health Score */}
+                                            <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col justify-between hover:bg-white/10 transition-colors">
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <div className={`p-2 rounded-lg ${healthMetrics.healthScore > 80 ? 'bg-green-500/10 text-green-400' : healthMetrics.healthScore > 50 ? 'bg-yellow-500/10 text-yellow-400' : 'bg-red-500/10 text-red-400'}`}>
+                                                        <Activity size={20} />
+                                                    </div>
+                                                    <span className={`text-xl font-black ${healthMetrics.healthScore > 80 ? 'text-green-400' : healthMetrics.healthScore > 50 ? 'text-yellow-400' : 'text-red-400'}`}>
+                                                        {healthMetrics.healthScore}%
+                                                    </span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Health Score</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Total Items */}
+                                            <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col justify-between hover:bg-white/10 transition-colors">
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400">
+                                                        <Package size={20} />
+                                                    </div>
+                                                    <span className="text-xl font-black text-slate-200">{healthMetrics.totalItems}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Total Items</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Creators */}
+                                            <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col justify-between hover:bg-white/10 transition-colors">
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <div className="p-2 rounded-lg bg-purple-500/10 text-purple-400">
+                                                        <UserPlus size={20} />
+                                                    </div>
+                                                    <span className="text-xl font-black text-slate-200">{healthMetrics.totalCreators}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Creators</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Sets */}
+                                            <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col justify-between hover:bg-white/10 transition-colors">
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <div className="p-2 rounded-lg bg-pink-500/10 text-pink-400">
+                                                        <Layers size={20} />
+                                                    </div>
+                                                    <span className="text-xl font-black text-slate-200">{healthMetrics.totalSets}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Total Sets</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {healthMetrics && (healthMetrics.duplicateCount > 0 || healthMetrics.missingMetadataCount > 0 || healthMetrics.brokenSetsCount > 0) && (
+                                        <div className="mb-8 space-y-3">
+                                            {healthMetrics.duplicateCount > 0 && (
+                                                <div className="bg-red-500/5 border border-red-500/20 p-4 rounded-xl flex items-center gap-4">
+                                                    <div className="p-2 bg-red-500/10 rounded-full text-red-500 shrink-0">
+                                                        <FileWarning size={20} />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-red-400 font-bold text-sm">Potential Duplicates Found</h4>
+                                                        <p className="text-red-400/70 text-xs">Found {healthMetrics.duplicateCount} items with identical filenames. This may affect game performance.</p>
+                                                    </div>
+                                                    <button className="ml-auto text-xs bg-red-500/10 hover:bg-red-500/20 text-red-400 px-3 py-1.5 rounded-lg font-bold transition-colors">
+                                                        Review
+                                                    </button>
+                                                </div>
+                                            )}
+
+                                            {healthMetrics.missingMetadataCount > 0 && (
+                                                <div className="bg-yellow-500/5 border border-yellow-500/20 p-4 rounded-xl flex items-center gap-4">
+                                                    <div className="p-2 bg-yellow-500/10 rounded-full text-yellow-500 shrink-0">
+                                                        <AlertTriangle size={20} />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-yellow-400 font-bold text-sm">Missing Metadata</h4>
+                                                        <p className="text-yellow-400/70 text-xs">{healthMetrics.missingMetadataCount} creators are missing Patreon or Website links.</p>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {healthMetrics.brokenSetsCount > 0 && (
+                                                <div className="bg-orange-500/5 border border-orange-500/20 p-4 rounded-xl flex items-center gap-4">
+                                                    <div className="p-2 bg-orange-500/10 rounded-full text-orange-500 shrink-0">
+                                                        <Package size={20} />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-orange-400 font-bold text-sm">Empty Sets Detected</h4>
+                                                        <p className="text-orange-400/70 text-xs">{healthMetrics.brokenSetsCount} sets have no items assigned to them.</p>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
 
                                     {credits.length === 0 ? (
                                         <div className="glass-effect rounded-2xl p-20 text-center space-y-4 border-2 border-dashed border-white/5">
