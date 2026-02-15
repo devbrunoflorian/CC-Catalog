@@ -86,9 +86,9 @@ export async function initDatabase() {
             release_date TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (creator_id) REFERENCES creators (id),
-            UNIQUE(creator_id, name)
+            FOREIGN KEY (creator_id) REFERENCES creators (id)
         );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_cc_sets_hierarchy ON cc_sets(creator_id, name, IFNULL(parent_id, ''));
 
         CREATE TABLE IF NOT EXISTS cc_items (
             id TEXT PRIMARY KEY,

@@ -11,7 +11,7 @@ O CC Catalog é uma ferramenta especializada para criadores e curadores de conte
 
 ## 🚀 Funcionalidades Principais
 
-- 📂 **Organização Hierárquica**: Suporte para sets aninhados (subpastas). Organize sua biblioteca por ano, tema ou coleção com relações pai/filho.
+- 📂 **Organização Hierárquica**: Suporte para sets aninhados (subpastas). Organize sua biblioteca por ano, tema ou coleção com relações pai/filho. Mova sets entre criadores facilmente via drag-and-drop.
 - 📁 **Escaneamento de ZIP Aprimorado**: Lógica de importação inteligente que identifica criadores e sets. 
     - **Prevenção de Duplicatas**: Verifica toda a biblioteca do criador para evitar a importação do mesmo item duas vezes.
     - **Ordenação Inteligente**: Arquivos na raiz ou com estruturas desconhecidas são movidos automaticamente para uma categoria "Não Selecionados".
@@ -19,16 +19,18 @@ O CC Catalog é uma ferramenta especializada para criadores e curadores de conte
     - **Links Automáticos**: Nomes de sets são convertidos em links clicáveis se as URLs de Patreon/Website estiverem disponíveis.
     - **Patreon HTML Mode**: Novo botão "Copy HTML" que gera links em rich-text prontos para colar diretamente no editor do Patreon.
     - **Priorização de Links**: URLs do Patreon agora têm precedência automática sobre URLs gerais de Website para criadores e sets.
-    - **Estética Rica**: Usa emojis (📁, 📦) e estruturas Markdown/HTML limpas para um visual profissional.
-- 👤 **Gerenciador de Biblioteca Avançado**: Edite metadados (Patreon, Website, Links Sociais) de criadores e sets individuais diretamente.
+- 🕒 **Organização de Histórico**: Organize seus scans passados em pastas personalizadas. Arraste e solte itens do histórico para manter seu espaço de trabalho limpo.
+- 🛡️ **Estabilidade e Segurança**: Sistema integrado de crash reporting.
+    - **Log em Arquivo**: Registro automático de erros no sistema de arquivos local.
+    - **Error Boundary**: Uma tela de "Pânico" dedicada caso a interface trave, permitindo salvar um relatório no Desktop ou reiniciar o app.
 - 🎨 **Interface Glass Premium**: Uma interface "glassy" deslumbrante com suporte nativo a **Acrylic/Mica** do Windows e cores de destaque personalizáveis.
-- 🧠 **Busca Difusa de Criadores**: Usa distância Levenshtein para detectar nomes de criadores similares (ex: "Felixand" vs "Felixandre") para evitar entradas redundantes.
-- 🗃️ **Persistência Robusta**: Armazenamento local usando SQLite com **Drizzle ORM** para gerenciamento de dados de alta performance.
+- 🧠 **Busca Difusa de Criadores**: Usa distância Levenshtein para detectar nomes de criadores similares e evitar entradas redundantes.
+- 🗃️ **Persistência Robusta**: SQLite com **Drizzle ORM**. O sistema de Exportação/Importação CSV agora suporta e preserva totalmente as hierarquias de pastas.
 
 ## 💻 Stack Tecnológica
 
 - **Framework**: Electron + Vite
-- **Frontend**: React, Vanilla CSS (Glassmorphism), Lucide React
+- **Frontend**: React, Tailwind CSS 4, Lucide React
 - **Database**: SQLite (via `better-sqlite3`) + **Drizzle ORM**
 - **Utilitários**: `adm-zip` para processamento de arquivos, `fuse.js` para seleção
 
@@ -68,20 +70,22 @@ npm run dist
 
 A ferramenta analisa arquivos ZIP procurando por assinaturas de criadores e padrões de pastas:
 - `Criador/NomeDoSet/NomeDoItem.package`
+- `Criador/NomeDoSet/SubPasta/NomeDoItem.package`
 - `Mods/Criador/NomeDoSet/NomeDoItem.package`
 
 Durante o escaneamento, se um nome for similar a um já existente no banco de dados, o CC Catalog perguntará se é um novo criador ou uma variação de um existente.
 
 ## 🔮 Roadmap & Visão Futura
 
-Estamos em constante evolução. Confira nossa página de [Implementações Futuras](FUTURE_IMPLEMENTATIONS.md) para propostas técnicas em andamento, incluindo nosso **Sistema de Identidade por Hash de Conteúdo** (Identificação Determinística via SHA-256).
+Estamos em constante evolução. Confira nossa página de [Implementações Futuras](FUTURE_IMPLEMENTATIONS.md) page for upcoming technical proposals, including our **Content Hash Identity System** (Deterministic SHA-256 Identification).
 
 
 ## ✅ Atualizações Recentes
 
-- [x] **Sets Aninhados**: Suporte a drag and drop para criar hierarquias de pastas.
+- [x] **Crash Reporting**: Log em arquivo e Error Boundary na UI com suporte a "Salvar no Desktop".
+- [x] **Pastas de Histórico**: Organize o histórico de scans em uma estrutura de pastas lógica.
+- [x] **Sets Aninhados**: Suporte a drag and drop para criar hierarquias de pastas e reatribuir sets a diferentes criadores.
 - [x] **Relatório V2**: Geração de markdown & HTML visual com links de Patreon priorizados.
 - [x] **Rich Clipboard API**: Suporte para cópia em `text/html` para contornar limitações do editor do Patreon.
-- [x] **Sincronização de Metadados**: Salvamento persistente de URLs com auto-sync.
-- [x] **Filtro Global de Duplicatas**: Evita a importação de arquivos repetidos entre diferentes sets de um mesmo criador.
+- [x] **CSV com Hierarquia**: Exportação e Importação agora preservam a estrutura de pastas aninhadas.
 - [x] **Tema Glass**: Efeitos de transparência nativos do Windows e tintura customizada.

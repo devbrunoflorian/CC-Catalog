@@ -11,7 +11,7 @@ CC Catalog is a specialized tool for The Sims content creators and curators to m
 
 ## 🚀 Key Features
 
-- 📂 **Hierarchical Organization**: Support for nested sets (subfolders). Organize your library by year, theme, or collection with parent/child relationships.
+- 📂 **Hierarchical Organization**: Support for nested sets (subfolders). Organize your library by year, theme, or collection with parent/child relationships. Easily move sets between creators via drag-and-drop.
 - 📁 **Enhanced ZIP Scanning**: Intelligent import logic that identifies creators and sets. 
     - **Duplicate Prevention**: Checks across the entire creator library to avoid importing the same item twice.
     - **Smart Sorting**: Files in root or unknown structures are automatically moved to an "Unsorted" category.
@@ -19,16 +19,18 @@ CC Catalog is a specialized tool for The Sims content creators and curators to m
     - **Auto-Hyperlinks**: Set names are automatically converted to clickable links if Patreon/Website URLs are available.
     - **Patreon HTML Mode**: New "Copy HTML" button that generates rich-text links ready for direct paste into the Patreon editor.
     - **Link Prioritization**: Patreon URLs now automatically take precedence over general Website URLs for both creators and sets.
-    - **Rich Aesthetics**: Uses emojis (📁, 📦) and clean Markdown/HTML structures for a professional look.
-- 👤 **Advanced Library Manager**: Edit metadata (Patreon, Website, Social links) for creators and individual sets directly.
+- 🕒 **History Management**: Organize your past scans into custom folders. Drag and drop history items to keep your workspace clean.
+- 🛡️ **Stability & Safety**: Built-in crash reporting system.
+    - **File Logging**: Automatic error logging to the local filesystem.
+    - **Error Boundary**: A dedicated "Panic" screen if the UI crashes, allowing you to save a report to your Desktop or restart the app.
 - 🎨 **Premium Glass UI**: A stunning "glassy" interface with Windows native **Acrylic/Mica** support and customizable accent colors.
-- 🧠 **Fuzzy Creator Matching**: Uses Levenshtein distance to detect similar creator names (e.g., "Felixand" vs "Felixandre") to prevent redundant entries.
-- 🗃️ **Robust Persistence**: Local storage using SQLite with **Drizzle ORM** for high-performance data management.
+- 🧠 **Fuzzy Creator Matching**: Uses Levenshtein distance to detect similar creator names to prevent redundant entries.
+- 🗃️ **Robust Persistence**: SQLite with **Drizzle ORM**. The CSV Export/Import system now fully supports and preserves set hierarchies.
 
 ## 💻 Technology Stack
 
 - **Framework**: Electron + Vite
-- **Frontend**: React, Vanilla CSS (Glassmorphism), Lucide React
+- **Frontend**: React, Tailwind CSS 4, Lucide React
 - **Database**: SQLite (via `better-sqlite3`) + **Drizzle ORM**
 - **Utilities**: `adm-zip` for archive processing, `fuse.js` for selection
 
@@ -70,7 +72,7 @@ The tool analyzes ZIP files looking for creator signatures and folder patterns:
 - `Creator/SetName/ItemName.package`
 - `Mods/Creator/SetName/ItemName.package`
 
-During scanning, if a name is similar to one already in your database, CC Catalog will prompt you to confirm if it's a new creator or a variations of an existing one.
+During scanning, if a name is similar to one already in your database, CC Catalog will prompt you to confirm if it's a new creator or a variation of an existing one.
 
 ## 🔮 Roadmap & Future Vision
 
@@ -79,9 +81,10 @@ We are constantly evolving. Check out our [Future Implementations](FUTURE_IMPLEM
 
 ## ✅ Completed & Recent Updates
 
-- [x] **Nested Sets**: Drag and drop support to create folder hierarchies.
+- [x] **Crash Reporting**: File-based logging and UI Error Boundary with "Save to Desktop" support.
+- [x] **History Folders**: Organize scan history into a logical folder structure.
+- [x] **Nested Sets**: Drag and drop support to create folder hierarchies and reassign sets to different creators.
 - [x] **Report V2**: Visual-first markdown & HTML generation with prioritized Patreon links.
 - [x] **Rich Clipboard API**: Support for `text/html` copying to bypass Patreon editor limitations.
-- [x] **Metadata Sync**: Persistent saving of Patreon/Website URLs with auto-sinc.
-- [x] **Global Duplicate Filter**: Prevents same-file imports across all sets of a creator.
+- [x] **Hierarchy-Aware CSV**: Export and Import now preserve nested folder structures.
 - [x] **Glass Theme**: Native Windows transparency effects and custom tinting.

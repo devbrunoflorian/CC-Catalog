@@ -14,7 +14,9 @@ import {
     UserPlus,
     Link2,
     ChevronRight,
-    ChevronLeft
+    ChevronLeft,
+    Bell,
+    DownloadCloud
 } from 'lucide-react';
 import CreatorsView from './components/CreatorsView';
 import HistoryView from './components/HistoryView';
@@ -22,6 +24,7 @@ import logo from './assets/logo.png';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import SettingsModal from './components/SettingsModal';
 import ScanConfirmationModal, { ScanAnalysis, ScanResult, CreatorMatch } from './components/ScanConfirmationModal';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // CCItem is aliased to ScanResult for backward compatibility in this file if needed, or we just use ScanResult
 type CCItem = ScanResult;
@@ -90,10 +93,41 @@ const DashboardContent: React.FC = () => {
     // State to trigger history refresh
     const [historyUpdateTrigger, setHistoryUpdateTrigger] = useState(0);
 
+    const [updateStatus, setUpdateStatus] = useState<{
+        status: 'checking' | 'available' | 'none' | 'error' | 'ready' | 'downloading';
+        message: string;
+        version?: string;
+        progress?: number;
+    } | null>(null);
+
+    const [showUpdateModal, setShowUpdateModal] = useState(false);
+
     useEffect(() => {
         loadCredits();
         loadHistory();
     }, [historyUpdateTrigger]);
+
+    useEffect(() => {
+        const handleStatus = (_event: any, data: any) => {
+            console.log('[RENDERER] Update status:', data);
+            setUpdateStatus(prev => ({ ...prev, ...data }));
+        };
+        const handleProgress = (_event: any, progress: number) => {
+            setUpdateStatus(prev => (prev ? { ...prev, progress, status: 'downloading' } : null));
+        };
+
+        (window as any).electron.on('update-status', handleStatus);
+        (window as any).electron.on('update-progress', handleProgress);
+
+        return () => {
+            (window as any).electron.removeAllListeners('update-status');
+            (window as any).electron.removeAllListeners('update-progress');
+        };
+    }, []);
+
+    const handleDownloadUpdate = () => {
+        (window as any).electron.invoke('download-update');
+    };
 
     const handleScan = async () => {
         setScanning(true);
@@ -319,7 +353,26 @@ const DashboardContent: React.FC = () => {
                         />
                     </div>
 
-                    <div className="flex gap-4">
+                    <div className="flex gap-4 items-center">
+                        {updateStatus?.status === 'available' && (
+                            <button
+                                onClick={() => setShowUpdateModal(true)}
+                                className="flex items-center gap-2 px-3 py-2 bg-brand-primary/10 border border-brand-primary/30 rounded-xl text-xs font-bold text-brand-secondary animate-pulse hover:animate-none transition-all"
+                            >
+                                <Bell size={14} />
+                                Update Available!
+                            </button>
+                        )}
+                        {(updateStatus?.status === 'downloading' || updateStatus?.status === 'ready') && (
+                            <button
+                                onClick={() => setShowUpdateModal(true)}
+                                className="flex items-center gap-2 px-3 py-2 bg-green-500/10 border border-green-500/30 rounded-xl text-xs font-bold text-green-400 transition-all"
+                            >
+                                <DownloadCloud size={14} />
+                                {updateStatus.status === 'downloading' ? `Downloading... ${Math.round(updateStatus.progress || 0)}%` : 'Ready to Install'}
+                            </button>
+                        )}
+
                         <button
                             onClick={() => {
                                 if (history.length > 0) {
@@ -777,15 +830,113 @@ const DashboardContent: React.FC = () => {
                     </div>
                 </div>
             )}
+
+            {/* Update Modal */}
+            {showUpdateModal && updateStatus && (
+                <div
+                    className="fixed inset-0 bg-black/80 backdrop-blur-xl z-[100] flex items-center justify-center p-6 animate-in fade-in duration-300"
+                    onClick={(e) => { if (e.target === e.currentTarget) setShowUpdateModal(false); }}
+                >
+                    <div className="bg-bg-card border border-border-subtle rounded-[2rem] w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+                        <div className="px-10 py-8 border-b border-border-subtle bg-gradient-to-r from-brand-primary/10 to-transparent">
+                            <h2 className="text-2xl font-black tracking-tight flex items-center gap-3">
+                                <DownloadCloud className="text-brand-primary" />
+                                Update Available
+                            </h2>
+                            <p className="text-slate-500 text-sm mt-1">A new version of CC Catalog is ready.</p>
+                        </div>
+                        <div className="p-10 text-center">
+                            <div className="mb-6">
+                                <span className="text-4xl font-black text-white">v{updateStatus.version}</span>
+                                <div className="text-xs font-bold text-brand-secondary uppercase tracking-widest mt-2">New Features & Improvements</div>
+                            </div>
+
+                            {updateStatus.status === 'available' && (
+                                <button
+                                    onClick={handleDownloadUpdate}
+                                    className="w-full py-4 bg-brand-primary hover:bg-brand-secondary text-white rounded-xl font-black uppercase tracking-widest text-sm shadow-xl shadow-brand-primary/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                                >
+                                    <DownloadCloud size={18} />
+                                    Download Now
+                                </button>
+                            )}
+
+                            {updateStatus.status === 'downloading' && (
+                                <div className="space-y-4">
+                                    <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                                        <div
+                                            className="h-full bg-brand-primary transition-all duration-300"
+                                            style={{ width: `${updateStatus.progress}%` }}
+                                        />
+                                    </div>
+                                    <p className="text-sm text-slate-400 font-medium tracking-tight">
+                                        Downloading... {Math.round(updateStatus.progress || 0)}%
+                                    </p>
+                                </div>
+                            )}
+
+                            {updateStatus.status === 'ready' && (
+                                <div className="space-y-4">
+                                    <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-2xl text-green-400 text-sm font-bold flex items-center gap-3 justify-center">
+                                        <CheckCircle2 size={18} />
+                                        Download Complete!
+                                    </div>
+                                    <p className="text-slate-400 text-sm">
+                                        The application will restart automatically to install the update.
+                                    </p>
+                                </div>
+                            )}
+
+                            <button
+                                onClick={() => setShowUpdateModal(false)}
+                                className="mt-6 w-full py-4 bg-white/5 hover:bg-white/10 text-slate-400 rounded-xl font-bold transition-all"
+                            >
+                                Not now
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
 
 const App: React.FC = () => {
+    useEffect(() => {
+        // Capture non-React errors (global renderer errors)
+        const handleGlobalError = (event: ErrorEvent) => {
+            (window as any).electron.invoke('report-renderer-error', {
+                message: event.message,
+                filename: event.filename,
+                lineno: event.lineno,
+                colno: event.colno,
+                stack: event.error?.stack
+            });
+        };
+
+        const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+            (window as any).electron.invoke('report-renderer-error', {
+                message: 'Unhandled Promise Rejection',
+                reason: event.reason?.toString(),
+                stack: event.reason?.stack
+            });
+        };
+
+        window.addEventListener('error', handleGlobalError);
+        window.addEventListener('unhandledrejection', handleUnhandledRejection);
+
+        return () => {
+            window.removeEventListener('error', handleGlobalError);
+            window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+        };
+    }, []);
+
     return (
-        <ThemeProvider>
-            <DashboardContent />
-        </ThemeProvider>
+        <ErrorBoundary>
+            <ThemeProvider>
+                <DashboardContent />
+            </ThemeProvider>
+        </ErrorBoundary>
     );
 };
 

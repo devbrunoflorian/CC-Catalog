@@ -1,10 +1,16 @@
 // Catch uncaught exceptions before they kill the process
 process.on('uncaughtException', (err) => {
     console.error('UNCAUGHT EXCEPTION:', err);
+    Logger.error('UNCAUGHT EXCEPTION in Main Process', err);
+    dialog.showErrorBox(
+        'Critical Error',
+        `An unexpected error occurred in the main process.\n\nA report has been saved to:\n${Logger.getLogFilePath()}\n\nError: ${err.message}`
+    );
 });
 
 process.on('unhandledRejection', (reason) => {
     console.error('UNHANDLED REJECTION:', reason);
+    Logger.error('UNHANDLED REJECTION in Main Process', reason);
 });
 
 console.log('[MAIN] starting app');
@@ -12,13 +18,18 @@ console.log('[MAIN] starting app');
 import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { join, dirname, basename, extname } from 'path';
+import { existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { initDatabase, getDb, saveDatabase } from './db/database.js';
 import { ZipScanner } from './lib/ZipScanner.js';
 import { ReportGenerator } from './lib/ReportGenerator.js';
+import { Logger } from './lib/Logger.js';
 import { creators, ccSets, ccItems, scanHistory, scanHistoryFolders } from './db/schema.js';
 import { eq, sql, desc, asc, inArray } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
+
+// Initialize Logger early
+Logger.init();
 
 // ES module __dirname polyfill (required for "type": "module" in package.json)
 const __filename = fileURLToPath(import.meta.url);
@@ -29,23 +40,27 @@ let dbInitialized = false;
 
 
 // Configure Auto Updater
-autoUpdater.autoDownload = true;
+autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = true;
 
 autoUpdater.on('checking-for-update', () => {
-    win?.webContents.send('update-status', 'Checking for updates...');
+    win?.webContents.send('update-status', { status: 'checking', message: 'Checking for updates...' });
 });
 
 autoUpdater.on('update-available', (info) => {
-    win?.webContents.send('update-status', `Update v${info.version} available!`);
+    win?.webContents.send('update-status', {
+        status: 'available',
+        message: `Update v${info.version} available!`,
+        version: info.version
+    });
 });
 
 autoUpdater.on('update-not-available', () => {
-    win?.webContents.send('update-status', 'No updates available.');
+    win?.webContents.send('update-status', { status: 'none', message: 'No updates available.' });
 });
 
 autoUpdater.on('error', (err) => {
-    win?.webContents.send('update-status', `Error: ${err.message}`);
+    win?.webContents.send('update-status', { status: 'error', message: `Update error: ${err.message}` });
 });
 
 autoUpdater.on('download-progress', (progress) => {
@@ -53,11 +68,24 @@ autoUpdater.on('download-progress', (progress) => {
 });
 
 autoUpdater.on('update-downloaded', (info) => {
-    win?.webContents.send('update-status', `Update v${info.version} ready! Restarting to install...`);
+    win?.webContents.send('update-status', {
+        status: 'ready',
+        message: `Update v${info.version} ready! Restarting to install...`,
+        version: info.version
+    });
     // Give the user 2 seconds to see the message before restarting
     setTimeout(() => {
         autoUpdater.quitAndInstall();
     }, 2000);
+});
+
+ipcMain.handle('download-update', async () => {
+    try {
+        await autoUpdater.downloadUpdate();
+        return { success: true };
+    } catch (error: any) {
+        return { success: false, message: error.message };
+    }
 });
 
 ipcMain.handle('check-for-updates', async () => {
@@ -376,11 +404,18 @@ ipcMain.handle('export-csv', async () => {
     const allSets = db.select().from(ccSets).all();
 
     // Header
-    let csvContent = "Creator Name,Creator Patreon,Creator Website,Set Name,Set Patreon,Set Website,Items (Pipe Separated)\n";
+    let csvContent = "Creator Name,Creator Patreon,Creator Website,Set Name,Set Parent Name,Set Patreon,Set Website,Items (Pipe Separated)\n";
 
     for (const set of allSets) {
         const creator = db.select().from(creators).where(eq(creators.id, set.creatorId)).get();
         if (!creator) continue;
+
+        // Find parent name if exists
+        let parentName = "";
+        if (set.parentId) {
+            const parent = db.select({ name: ccSets.name }).from(ccSets).where(eq(ccSets.id, set.parentId)).get();
+            if (parent) parentName = parent.name;
+        }
 
         const items = db.select().from(ccItems).where(eq(ccItems.ccSetId, set.id)).all();
         const itemsStr = items.map(i => i.fileName).join('|');
@@ -399,6 +434,7 @@ ipcMain.handle('export-csv', async () => {
             esc(creator.patreonUrl),
             esc(creator.websiteUrl),
             esc(set.name),
+            esc(parentName),
             esc(set.patreonUrl),
             esc(set.websiteUrl),
             esc(itemsStr)
@@ -481,14 +517,14 @@ ipcMain.handle('import-csv', async () => {
 
     for (let i = startIdx; i < rows.length; i++) {
         const cols = rows[i];
-        // Ensure strictly 7 columns based on export format
-        if (cols.length < 7) {
+        // Ensure strictly 8 columns based on new export format
+        if (cols.length < 8) {
             console.warn(`[CSV Import] Skipping invalid row ${i}:`, cols);
             continue;
         }
 
-        // Clean up fields (trim spaces around but keep internal spaces)
-        let [cName, cPat, cWeb, sName, sPat, sWeb, itemsStr] = cols.map(c => c ? c.trim() : '');
+        // Clean up fields
+        let [cName, cPat, cWeb, sName, sParent, sPat, sWeb, itemsStr] = cols.map(c => c ? c.trim() : '');
 
         if (!cName || !sName) continue;
 
@@ -519,6 +555,16 @@ ipcMain.handle('import-csv', async () => {
 
             // 2. Process Set
             let setId: string;
+            let parentId: string | null = null;
+
+            // Resolve parent first if specified
+            if (sParent) {
+                const parentSet = db.select().from(ccSets).where(
+                    sql`${ccSets.creatorId} = ${creatorId} AND ${ccSets.name} = ${sParent}`
+                ).get();
+                if (parentSet) parentId = parentSet.id;
+            }
+
             let set = db.select().from(ccSets).where(
                 sql`${ccSets.creatorId} = ${creatorId} AND ${ccSets.name} = ${sName}`
             ).get();
@@ -529,19 +575,19 @@ ipcMain.handle('import-csv', async () => {
                     id: setId,
                     creatorId: creatorId,
                     name: sName,
+                    parentId: parentId,
                     patreonUrl: sPat || null,
                     websiteUrl: sWeb || null,
                     updatedAt: sql`CURRENT_TIMESTAMP`
                 }).run();
             } else {
                 setId = set.id;
-                if (sPat || sWeb) {
-                    db.update(ccSets).set({
-                        patreonUrl: sPat || set.patreonUrl,
-                        websiteUrl: sWeb || set.websiteUrl,
-                        updatedAt: sql`CURRENT_TIMESTAMP`
-                    }).where(eq(ccSets.id, setId)).run();
-                }
+                const updateData: any = { updatedAt: sql`CURRENT_TIMESTAMP` };
+                if (sPat) updateData.patreonUrl = sPat;
+                if (sWeb) updateData.websiteUrl = sWeb;
+                if (parentId) updateData.parentId = parentId;
+
+                db.update(ccSets).set(updateData).where(eq(ccSets.id, setId)).run();
             }
 
             // 3. Process Items
@@ -761,8 +807,70 @@ if (!gotTheLock) {
                 // Column likely exists
             }
 
+            // --- RECREATED MIGRATION FOR CC_SETS UNIQUE CONSTRAINT ---
+            try {
+                const { getRawDb } = await import('./db/database.js');
+                const raw = getRawDb();
+
+                // Check if we need to remove the old constraint.
+                // SQLite doesn't let us DROP CONSTRAINT, so we check if the index exists.
+                // If the table was created with UNIQUE(creator_id, name), it has an implicit index.
+
+                // A safer way: Try a migration that recreates the table to be sure.
+                const tableInfo = raw.exec("PRAGMA table_info(cc_sets)");
+                if (tableInfo.length > 0) {
+                    const columns = tableInfo[0].values.map(v => v[1] as string);
+                    const colList = columns.join(', ');
+
+                    // Create new table matching schema but WITHOUT the UNIQUE(creator_id, name) in table def
+                    raw.run(`
+                        CREATE TABLE IF NOT EXISTS cc_sets_migration (
+                            id TEXT PRIMARY KEY,
+                            creator_id TEXT NOT NULL,
+                            name TEXT NOT NULL,
+                            release_date TEXT,
+                            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                            patreon_url TEXT,
+                            website_url TEXT,
+                            sort_order INTEGER DEFAULT 0,
+                            extra_links TEXT,
+                            parent_id TEXT,
+                            FOREIGN KEY (creator_id) REFERENCES creators (id)
+                        )
+                    `);
+
+                    // Copy data
+                    raw.run(`INSERT OR IGNORE INTO cc_sets_migration (${colList}) SELECT ${colList} FROM cc_sets`);
+
+                    // Drop and Rename
+                    raw.run(`DROP TABLE cc_sets`);
+                    raw.run(`ALTER TABLE cc_sets_migration RENAME TO cc_sets`);
+
+                    // Create the proper hierarchy index
+                    raw.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_cc_sets_hierarchy ON cc_sets(creator_id, name, IFNULL(parent_id, ''))`);
+                    console.log('[MIGRATION] cc_sets unique constraint fixed for nested sets.');
+                }
+            } catch (e) {
+                console.error('[MIGRATION] cc_sets migration failed or already completed:', e);
+                // Fallback attempt to at least create the index if table is already okay
+                try {
+                    const { getRawDb } = await import('./db/database.js');
+                    getRawDb().run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_cc_sets_hierarchy ON cc_sets(creator_id, name, IFNULL(parent_id, ''))`);
+                } catch (idxErr) { }
+            }
+            // ---------------------------------------------------------
+
             console.log('[MAIN] initDatabase OK');
             dbInitialized = true;
+
+            // Start check for updates if not in dev
+            if (!process.env.VITE_DEV_SERVER_URL) {
+                setTimeout(() => {
+                    console.log('[MAIN] checking for updates...');
+                    autoUpdater.checkForUpdates();
+                }, 5000); // Wait a bit after startup
+            }
         } catch (err) {
             console.error('[MAIN] initDatabase FAILED', err);
             process.exit(1);
@@ -930,6 +1038,32 @@ ipcMain.handle('generate-report', async (_, options) => {
 ipcMain.handle('generate-report-html', async (_, options) => {
     if (!dbInitialized) throw new Error('Database not initialized');
     return ReportGenerator.generateHTML(options);
+});
+
+ipcMain.handle('report-renderer-error', async (_, errorInfo) => {
+    Logger.error('RENDERER ERROR', errorInfo);
+});
+
+ipcMain.handle('save-crash-report-file', async () => {
+    const logPath = Logger.getLogFilePath();
+    if (!existsSync(logPath)) return { success: false, message: 'No log file found' };
+
+    const { canceled, filePath } = await dialog.showSaveDialog({
+        title: 'Save Crash Report',
+        defaultPath: join(app.getPath('desktop'), basename(logPath)),
+        filters: [{ name: 'Log Files', extensions: ['log'] }]
+    });
+
+    if (canceled || !filePath) return { success: false };
+
+    try {
+        const fs = await import('fs/promises');
+        await fs.copyFile(logPath, filePath);
+        return { success: true, filePath };
+    } catch (err: any) {
+        Logger.error('Failed to save crash report to user destination', err);
+        return { success: false, message: err.message };
+    }
 });
 
 ipcMain.on('splash-finished', () => {
