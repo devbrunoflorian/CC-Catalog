@@ -17,7 +17,9 @@ O CC Catalog é uma ferramenta especializada para criadores e curadores de conte
     - **Ordenação Inteligente**: Arquivos na raiz ou com estruturas desconhecidas são movidos automaticamente para uma categoria "Não Selecionados".
 - 📝 **Relatórios Prontos para Redes Sociais**: Gera listas de créditos formatadas especificamente para **Patreon** e **X (Twitter)**.
     - **Links Automáticos**: Nomes de sets são convertidos em links clicáveis se as URLs de Patreon/Website estiverem disponíveis.
-    - **Estética Rica**: Usa emojis (📁, 📦) e indentação Markdown limpa para um visual profissional.
+    - **Patreon HTML Mode**: Novo botão "Copy HTML" que gera links em rich-text prontos para colar diretamente no editor do Patreon.
+    - **Priorização de Links**: URLs do Patreon agora têm precedência automática sobre URLs gerais de Website para criadores e sets.
+    - **Estética Rica**: Usa emojis (📁, 📦) e estruturas Markdown/HTML limpas para um visual profissional.
 - 👤 **Gerenciador de Biblioteca Avançado**: Edite metadados (Patreon, Website, Links Sociais) de criadores e sets individuais diretamente.
 - 🎨 **Interface Glass Premium**: Uma interface "glassy" deslumbrante com suporte nativo a **Acrylic/Mica** do Windows e cores de destaque personalizáveis.
 - 🧠 **Busca Difusa de Criadores**: Usa distância Levenshtein para detectar nomes de criadores similares (ex: "Felixand" vs "Felixandre") para evitar entradas redundantes.
@@ -73,7 +75,8 @@ Durante o escaneamento, se um nome for similar a um já existente no banco de da
 ## ✅ Atualizações Recentes
 
 - [x] **Sets Aninhados**: Suporte a drag and drop para criar hierarquias de pastas.
-- [x] **Relatório V2**: Geração de markdown visual com emojis e links.
+- [x] **Relatório V2**: Geração de markdown & HTML visual com links de Patreon priorizados.
+- [x] **Rich Clipboard API**: Suporte para cópia em `text/html` para contornar limitações do editor do Patreon.
 - [x] **Sincronização de Metadados**: Salvamento persistente de URLs com auto-sync.
 - [x] **Filtro Global de Duplicatas**: Evita a importação de arquivos repetidos entre diferentes sets de um mesmo criador.
 - [x] **Tema Glass**: Efeitos de transparência nativos do Windows e tintura customizada.

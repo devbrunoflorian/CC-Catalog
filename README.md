@@ -17,7 +17,9 @@ CC Catalog is a specialized tool for The Sims content creators and curators to m
     - **Smart Sorting**: Files in root or unknown structures are automatically moved to an "Unsorted" category.
 - 📝 **Social-Ready Reports**: Generate credit lists formatted specifically for **Patreon** and **X (Twitter)**.
     - **Auto-Hyperlinks**: Set names are automatically converted to clickable links if Patreon/Website URLs are available.
-    - **Rich Aesthetics**: Uses emojis (📁, 📦) and clean Markdown indentation for a professional look.
+    - **Patreon HTML Mode**: New "Copy HTML" button that generates rich-text links ready for direct paste into the Patreon editor.
+    - **Link Prioritization**: Patreon URLs now automatically take precedence over general Website URLs for both creators and sets.
+    - **Rich Aesthetics**: Uses emojis (📁, 📦) and clean Markdown/HTML structures for a professional look.
 - 👤 **Advanced Library Manager**: Edit metadata (Patreon, Website, Social links) for creators and individual sets directly.
 - 🎨 **Premium Glass UI**: A stunning "glassy" interface with Windows native **Acrylic/Mica** support and customizable accent colors.
 - 🧠 **Fuzzy Creator Matching**: Uses Levenshtein distance to detect similar creator names (e.g., "Felixand" vs "Felixandre") to prevent redundant entries.
@@ -73,7 +75,8 @@ During scanning, if a name is similar to one already in your database, CC Catalo
 ## ✅ Completed & Recent Updates
 
 - [x] **Nested Sets**: Drag and drop support to create folder hierarchies.
-- [x] **Report V2**: Visual-first markdown generation with emojis and links.
+- [x] **Report V2**: Visual-first markdown & HTML generation with prioritized Patreon links.
+- [x] **Rich Clipboard API**: Support for `text/html` copying to bypass Patreon editor limitations.
 - [x] **Metadata Sync**: Persistent saving of Patreon/Website URLs with auto-sinc.
 - [x] **Global Duplicate Filter**: Prevents same-file imports across all sets of a creator.
 - [x] **Glass Theme**: Native Windows transparency effects and custom tinting.
