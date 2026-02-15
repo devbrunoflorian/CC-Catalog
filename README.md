@@ -72,6 +72,11 @@ The tool analyzes ZIP files looking for creator signatures and folder patterns:
 
 During scanning, if a name is similar to one already in your database, CC Catalog will prompt you to confirm if it's a new creator or a variations of an existing one.
 
+## 🔮 Roadmap & Future Vision
+
+We are constantly evolving. Check out our [Future Implementations](FUTURE_IMPLEMENTATIONS.md) page for upcoming technical proposals, including our **Content Hash Identity System** (Deterministic SHA-256 Identification).
+
+
 ## ✅ Completed & Recent Updates
 
 - [x] **Nested Sets**: Drag and drop support to create folder hierarchies.

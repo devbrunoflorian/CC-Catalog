@@ -72,6 +72,11 @@ A ferramenta analisa arquivos ZIP procurando por assinaturas de criadores e padr
 
 Durante o escaneamento, se um nome for similar a um já existente no banco de dados, o CC Catalog perguntará se é um novo criador ou uma variação de um existente.
 
+## 🔮 Roadmap & Visão Futura
+
+Estamos em constante evolução. Confira nossa página de [Implementações Futuras](FUTURE_IMPLEMENTATIONS.md) para propostas técnicas em andamento, incluindo nosso **Sistema de Identidade por Hash de Conteúdo** (Identificação Determinística via SHA-256).
+
+
 ## ✅ Atualizações Recentes
 
 - [x] **Sets Aninhados**: Suporte a drag and drop para criar hierarquias de pastas.
