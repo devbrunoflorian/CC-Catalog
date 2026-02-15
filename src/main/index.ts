@@ -220,21 +220,7 @@ ipcMain.handle('update-set-order', async (_, updates: { id: string; sortOrder: n
     return { success: true };
 });
 
-ipcMain.handle('move-set', async (_, { setId, targetParentId }) => {
-    if (!dbInitialized) throw new Error('Database not initialized');
-    const db = getDb();
 
-    db.update(ccSets)
-        .set({
-            parentId: targetParentId, // Can be null to move back to root
-            updatedAt: sql`CURRENT_TIMESTAMP`
-        })
-        .where(eq(ccSets.id, setId))
-        .run();
-
-    saveDatabase();
-    return { success: true };
-});
 
 ipcMain.handle('update-set-link', async (_, { id, name, patreon_url, website_url, extra_links }: any) => {
     if (!dbInitialized) throw new Error('Database not initialized');
@@ -802,6 +788,7 @@ ipcMain.handle('get-history-folders', async () => {
 });
 
 ipcMain.handle('move-set', async (_, { setId, targetParentId, targetCreatorId }) => {
+    console.log(`[IPC] move-set called: setId=${setId}, targetParentId=${targetParentId}, targetCreatorId=${targetCreatorId}`);
     if (!dbInitialized) throw new Error('Database not initialized');
     const db = getDb();
 
@@ -819,6 +806,19 @@ ipcMain.handle('move-set', async (_, { setId, targetParentId, targetCreatorId })
         if (targetParentId === undefined) {
             updateData.parentId = null;
         }
+
+        // Recursively update creatorId for all children
+        const updateChildrenCreator = (parentId: string, newCreatorId: string) => {
+            const children = db.select().from(ccSets).where(eq(ccSets.parentId, parentId)).all();
+            for (const child of children) {
+                db.update(ccSets)
+                    .set({ creatorId: newCreatorId, updatedAt: sql`CURRENT_TIMESTAMP` })
+                    .where(eq(ccSets.id, child.id))
+                    .run();
+                updateChildrenCreator(child.id, newCreatorId);
+            }
+        };
+        updateChildrenCreator(setId, targetCreatorId);
     }
 
     db.update(ccSets)
@@ -827,6 +827,7 @@ ipcMain.handle('move-set', async (_, { setId, targetParentId, targetCreatorId })
         .run();
 
     saveDatabase();
+    console.log('[IPC] move-set success (recursive)');
     return { success: true };
 });
 

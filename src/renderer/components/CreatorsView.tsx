@@ -137,7 +137,8 @@ const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger }) => {
         }
 
         setMergeOptionModal({ show: false, sourceId: null, targetId: null });
-        loadCreatorDetails(selectedCreatorId || '');
+        await loadCreatorsList();
+        if (selectedCreatorId) await loadCreatorDetails(selectedCreatorId);
     };
 
     const handleCreatorDragOver = (e: React.DragEvent, creatorId: string) => {
@@ -149,17 +150,28 @@ const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger }) => {
 
     const handleCreatorDrop = async (e: React.DragEvent, targetCreatorId: string) => {
         e.preventDefault();
+        console.log(`[CreatorsView] handleCreatorDrop: draggingSetId=${draggingSetId}, targetCreatorId=${targetCreatorId}`);
         if (!draggingSetId) return;
 
-        if (confirm('Move this set to ' + creatorsList.find(c => c.id === targetCreatorId)?.name + '?')) {
-            await (window as any).electron.invoke('move-set', {
-                setId: draggingSetId,
-                targetCreatorId: targetCreatorId
-            });
+        const targetCreatorName = creatorsList.find(c => c.id === targetCreatorId)?.name;
+        if (confirm('Move this set to ' + targetCreatorName + '?')) {
+            console.log('[CreatorsView] User confirmed move, invoking move-set...');
+            try {
+                await (window as any).electron.invoke('move-set', {
+                    setId: draggingSetId,
+                    targetCreatorId: targetCreatorId
+                });
+                console.log('[CreatorsView] move-set complete, reloading data...');
 
-            // Reload details (current creator will lose the set)
-            loadCreatorsList();
-            if (selectedCreatorId) loadCreatorDetails(selectedCreatorId);
+                // Reload details (current creator will lose the set)
+                await loadCreatorsList();
+                if (selectedCreatorId) {
+                    await loadCreatorDetails(selectedCreatorId);
+                }
+            } catch (err: any) {
+                console.error('[CreatorsView] move-set failed:', err);
+                alert('Move failed: ' + err.message);
+            }
         }
 
         setDropTargetCreatorId(null);
@@ -655,7 +667,8 @@ const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger }) => {
         setNewSetWebsite('');
         setShowNewSetInput(false);
         setActiveParentSetId(null);
-        loadCreatorDetails(selectedCreatorId);
+        await loadCreatorsList();
+        if (selectedCreatorId) await loadCreatorDetails(selectedCreatorId);
     };
 
     const handleUpdateSet = async (setId: string) => {
@@ -716,7 +729,8 @@ const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger }) => {
 
         try {
             await (window as any).electron.invoke('delete-set', { id: setId, deleteItems });
-            loadCreatorDetails(selectedCreatorId!);
+            await loadCreatorsList();
+            if (selectedCreatorId) await loadCreatorDetails(selectedCreatorId);
         } catch (e: any) {
             alert(e.message);
         }
@@ -1021,9 +1035,9 @@ const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger }) => {
                             onDragLeave={() => setDropTargetCreatorId(null)}
                             onDrop={(e) => handleCreatorDrop(e, creator.id)}
                             className={`p-4 rounded-xl cursor-pointer transition-all duration-300 border group relative overflow-hidden ${dropTargetCreatorId === creator.id ? 'bg-brand-primary/20 border-brand-primary border-dashed scale-[1.02] shadow-[0_0_20px_hsl(var(--brand-primary)/0.3)]' :
-                                    selectedCreatorId === creator.id
-                                        ? 'bg-brand-primary/10 border-brand-primary/50 shadow-[0_0_20px_hsl(var(--brand-primary)/0.2)]'
-                                        : 'bg-transparent border-transparent hover:bg-white/5 hover:border-brand-primary/30 hover:shadow-[0_0_15px_hsl(var(--brand-primary)/0.15)]'
+                                selectedCreatorId === creator.id
+                                    ? 'bg-brand-primary/10 border-brand-primary/50 shadow-[0_0_20px_hsl(var(--brand-primary)/0.2)]'
+                                    : 'bg-transparent border-transparent hover:bg-white/5 hover:border-brand-primary/30 hover:shadow-[0_0_15px_hsl(var(--brand-primary)/0.15)]'
                                 }`}
                         >
                             <div className={`font-bold transition-colors ${selectedCreatorId === creator.id ? 'text-brand-secondary' : 'text-slate-300 group-hover:text-slate-100'}`}>
