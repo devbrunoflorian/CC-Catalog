@@ -179,8 +179,8 @@ const DashboardContent: React.FC = () => {
     const [reportConfig, setReportConfig] = useState({
         includeCreators: true,
         includeSets: true,
-        includeItems: true,
-        includeCategory: true
+        includeItems: false,
+        includeCategory: false
     });
 
     const handleOpenReportOptions = (source: ReportSource = { type: 'library', contextName: 'Full Library' }) => {
