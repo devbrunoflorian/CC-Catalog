@@ -12,7 +12,9 @@ import {
     X,
     AlertCircle,
     UserPlus,
-    Link2
+    Link2,
+    ChevronRight,
+    ChevronLeft
 } from 'lucide-react';
 import CreatorsView from './components/CreatorsView';
 import HistoryView from './components/HistoryView';
@@ -229,46 +231,65 @@ const DashboardContent: React.FC = () => {
         return style;
     };
 
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
     return (
         <div className="h-screen text-slate-200 flex font-sans transition-colors duration-500 overflow-hidden" style={getBackgroundStyle()}>
             {/* Sidebar */}
-            <aside className="w-64 border-r border-border-subtle bg-bg-card/50 flex flex-col p-6 shadow-xl z-10 text-slate-400 backdrop-blur-sm shrink-0">
-                <div className="flex items-center gap-3 mb-10 px-2 text-slate-200">
-                    <img src={logo} alt="Logo" className="w-10 h-10 object-contain rounded-xl" />
-                    <span className="font-bold text-xl tracking-tight">CC Catalog</span>
+            <aside
+                className={`${isSidebarCollapsed ? 'w-20' : 'w-64'} border-r border-border-subtle bg-bg-card/50 flex flex-col transition-all duration-300 shadow-xl z-20 text-slate-400 backdrop-blur-sm shrink-0`}
+            >
+                <div className={`flex items-center gap-3 mb-6 px-4 py-6 text-slate-200 ${isSidebarCollapsed ? 'justify-center' : ''}`}>
+                    <img src={logo} alt="Logo" className="w-8 h-8 object-contain rounded-xl" />
+                    {!isSidebarCollapsed && <span className="font-bold text-xl tracking-tight animate-in fade-in duration-200">CC Catalog</span>}
                 </div>
 
-                <nav className="space-y-2 flex-grow">
+                <div className="px-3 mb-2 flex justify-end">
+                    <button
+                        onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                        className="p-1.5 rounded-lg transition-all duration-300 text-slate-400 hover:text-brand-secondary hover:bg-brand-primary/10 hover:shadow-[0_0_12px_hsl(var(--brand-primary)/0.4)]"
+                        title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+                    >
+                        {isSidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+                        {/* Actually, let's use a proper Menu icon or Chevron */}
+                    </button>
+                </div>
+
+                <nav className="space-y-2 flex-grow px-2">
                     <button
                         onClick={() => setCurrentView('dashboard')}
-                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${currentView === 'dashboard' ? 'bg-brand-primary/10 text-brand-secondary' : 'hover:text-slate-200 hover:bg-white/5'}`}
+                        className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-xl font-medium transition-all ${currentView === 'dashboard' ? 'bg-brand-primary/10 text-brand-secondary' : 'hover:text-slate-200 hover:bg-white/5'}`}
+                        title={isSidebarCollapsed ? "Dashboard" : ""}
                     >
                         <Package size={20} />
-                        Dashboard
+                        {!isSidebarCollapsed && <span>Dashboard</span>}
                     </button>
                     <button
                         onClick={() => setCurrentView('creators')}
-                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${currentView === 'creators' ? 'bg-brand-primary/10 text-brand-secondary' : 'hover:text-slate-200 hover:bg-white/5'}`}
+                        className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-xl font-medium transition-all ${currentView === 'creators' ? 'bg-brand-primary/10 text-brand-secondary' : 'hover:text-slate-200 hover:bg-white/5'}`}
+                        title={isSidebarCollapsed ? "Creators" : ""}
                     >
                         <CreditCard size={20} />
-                        Creators
+                        {!isSidebarCollapsed && <span>Creators</span>}
                     </button>
                     <button
                         onClick={() => setCurrentView('history')}
-                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${currentView === 'history' ? 'bg-brand-primary/10 text-brand-secondary' : 'hover:text-slate-200 hover:bg-white/5'}`}
+                        className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-xl font-medium transition-all ${currentView === 'history' ? 'bg-brand-primary/10 text-brand-secondary' : 'hover:text-slate-200 hover:bg-white/5'}`}
+                        title={isSidebarCollapsed ? "History" : ""}
                     >
                         <History size={20} />
-                        History
+                        {!isSidebarCollapsed && <span>History</span>}
                     </button>
                 </nav>
 
-                <div className="pt-6 border-t border-border-subtle">
+                <div className="pt-6 border-t border-border-subtle p-2">
                     <button
                         onClick={() => setShowSettings(true)}
-                        className="w-full flex items-center gap-3 px-4 py-3 hover:text-slate-200 rounded-xl font-medium transition-all hover:bg-white/5"
+                        className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 hover:text-slate-200 rounded-xl font-medium transition-all hover:bg-white/5`}
+                        title={isSidebarCollapsed ? "Settings" : ""}
                     >
                         <Settings size={20} />
-                        Settings
+                        {!isSidebarCollapsed && <span>Settings</span>}
                     </button>
                 </div>
             </aside>

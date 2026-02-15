@@ -7,7 +7,7 @@ import { eq, sql } from 'drizzle-orm';
 
 export interface ScanResult {
     creatorName: string;
-    setName: string;
+    setHierarchy: string[]; // ["RootSet", "SubSet", "LeafSet"]
     fileName: string;
 }
 
@@ -30,6 +30,8 @@ export class ZipScanner {
             const results: ScanResult[] = [];
             const uniqueCreators = new Set<string>();
 
+            console.log(`[Scan] Scanning: ${filePath}`);
+
             yauzl.open(filePath, { lazyEntries: true }, (err, zipfile) => {
                 if (err) return reject(err);
                 if (!zipfile) return reject(new Error('Failed to open zip file'));
@@ -39,59 +41,87 @@ export class ZipScanner {
                 const zipFileName = filePath.split(/[\\/]/).pop() || '';
                 const zipBaseName = zipFileName.replace(/\.zip$/i, '');
 
-                // Try to extract creator hint from filename (usually first word or "Creator - Set")
                 const zipParts = zipBaseName.split(/[-_ ]/);
                 const zipCreatorHint = zipParts[0];
 
                 zipfile.on('entry', (entry) => {
                     if (/\/$/.test(entry.fileName) || !entry.fileName.endsWith('.package')) {
-                        // Directory or not a .package file, skip
                         zipfile.readEntry();
                         return;
                     }
 
                     const pathParts = entry.fileName.split('/');
                     let creatorName = 'Unknown';
-                    let setName = 'General';
+                    let setHierarchy: string[] = [];
                     const fileName = pathParts[pathParts.length - 1];
 
+                    // Heuristic: First folder is creator, subsequent are sets
                     if (pathParts.length >= 2) {
-                        creatorName = pathParts[0] === 'Mods' ? (pathParts[1] || 'Unknown') : pathParts[0];
-
-                        if (pathParts.length >= 3 && pathParts[0] === 'Mods') {
-                            const folderName = pathParts[2];
-                            setName = (folderName && !folderName.toLowerCase().endsWith('.package')) ? folderName : 'Unsorted';
-                        } else if (pathParts.length >= 2 && pathParts[0] !== 'Mods') {
-                            const folderName = pathParts[1];
-                            setName = (folderName && !folderName.toLowerCase().endsWith('.package')) ? folderName : 'Unsorted';
+                        if (pathParts[0] === 'Mods') {
+                            // Structure: Mods/Creator/Set... or Mods/Item.package
+                            if (pathParts.length > 2) {
+                                creatorName = pathParts[1];
+                                // Sets are from index 2 to end-1
+                                setHierarchy = pathParts.slice(2, pathParts.length - 1);
+                            } else {
+                                // Mods/Item.package -> Unknown creator? Or maybe "Mods" is the creator? 
+                                // Actually usually Mods bucket is generic. Let's try zip hint.
+                                creatorName = 'Unknown';
+                            }
+                        } else {
+                            // Structure: Creator/Set/Item... or Creator/Item...
+                            creatorName = pathParts[0];
+                            setHierarchy = pathParts.slice(1, pathParts.length - 1);
                         }
                     }
 
-                    // FALLBACK: If creator is unknown or shallow, try using zip filename hints
+                    // Fallback to Zip Hints if Unknown
                     if (creatorName === 'Unknown' || pathParts.length < 2) {
-                        // If we have a hint from zip filename, use it
                         if (zipCreatorHint && zipCreatorHint.length > 2) {
                             creatorName = zipCreatorHint;
 
-                            // If zip basename is "Creator SetName", try to set setName
+                            // Check if zip name contains set info
                             if (zipBaseName.toLowerCase().includes(zipCreatorHint.toLowerCase())) {
                                 const potentialSet = zipBaseName.replace(new RegExp(zipCreatorHint, 'i'), '').trim();
-                                if (potentialSet && setName === 'General') {
-                                    setName = potentialSet.replace(/^[-_ ]+/, ''); // Clean up leading separators
+                                const cleanSet = potentialSet.replace(/^[-_ ]+/, '');
+                                if (cleanSet) {
+                                    // If we rely on zip name for set, it's a root set
+                                    setHierarchy = [cleanSet];
+
+                                    // But if we have subfolders in the zip (even without creator folder), append them?
+                                    // Example: Zip "Artsy - LivingRoom.zip" contains "Chairs/Chair.package"
+                                    // Creator: Artsy, RootSet: LivingRoom.
+                                    // Should it be LivingRoom/Chairs? Yes.
+                                    const internalDirs = pathParts.slice(0, pathParts.length - 1);
+                                    if (internalDirs.length > 0 && internalDirs[0] !== 'Mods') {
+                                        setHierarchy.push(...internalDirs);
+                                    }
+                                } else {
+                                    // Zip is just "Creator.zip"? Then internal dirs are sets.
+                                    const internalDirs = pathParts.slice(0, pathParts.length - 1);
+                                    if (internalDirs.length > 0) {
+                                        setHierarchy = internalDirs;
+                                    } else {
+                                        setHierarchy = ['General'];
+                                    }
                                 }
                             }
                         }
                     }
 
-                    results.push({ creatorName, setName, fileName });
+                    // Final cleanup
+                    if (setHierarchy.length === 0) setHierarchy = ['Unsorted'];
+
+                    // Filter out "Mods" if it snuck in
+                    setHierarchy = setHierarchy.filter(s => s !== 'Mods');
+
+                    results.push({ creatorName, setHierarchy, fileName });
                     uniqueCreators.add(creatorName);
 
-                    // Read next entry
                     zipfile.readEntry();
                 });
 
                 zipfile.on('end', () => {
-                    // Fuzzy Matching Logic (Moved inside the promise resolution)
                     const db = getDb();
                     const existingCreators = db.select({ id: creators.id, name: creators.name }).from(creators).all();
                     const matches: CreatorMatch[] = [];
@@ -113,19 +143,16 @@ export class ZipScanner {
                             return;
                         }
 
-                        // Improved Fuzzy and Substring Matching
                         let bestMatch: { id: string; name: string; score: number } | null = null;
 
                         for (const existing of existingCreators) {
                             const existingLower = existing.name.toLowerCase();
                             let score = getSimilarity(creatorName, existing.name);
 
-                            // Boost score if one contains the other (e.g. "Felixandre" in "Felixandre Berlin")
                             if (nameLower.includes(existingLower) || existingLower.includes(nameLower)) {
-                                score = Math.max(score, 0.9); // High confidence for inclusion
+                                score = Math.max(score, 0.9);
                             }
 
-                            // Specific Boost for "Starts With" (very common for "Creator Name - Set Name")
                             if (nameLower.startsWith(existingLower) || existingLower.startsWith(nameLower)) {
                                 score = Math.max(score, 0.95);
                             }
@@ -141,14 +168,13 @@ export class ZipScanner {
                                 existingName: bestMatch.name,
                                 existingId: bestMatch.id,
                                 similarity: bestMatch.score,
-                                // If score is very high (inclusive/starts with), don't require confirmation
-                                needsConfirmation: bestMatch.score < 0.9,
+                                needsConfirmation: bestMatch.score < 0.95,
                             });
                         } else {
                             matches.push({
                                 foundName: creatorName,
                                 similarity: 0,
-                                needsConfirmation: true, // New creator
+                                needsConfirmation: true,
                             });
                         }
                     });
@@ -165,50 +191,33 @@ export class ZipScanner {
 
     static async processScanResults(results: ScanResult[], confirmedMatches: CreatorMatch[]) {
         const db = getDb();
-        const rawDb = getRawDb();
         const creatorMap = new Map<string, string>();
 
-        // Map each creator name from the scan to a database creator ID
+        // 1. Resolve Creators
         for (const match of confirmedMatches) {
             if (match.existingId) {
-                // If the user chose an existing creator, map the found name to the existing ID
                 creatorMap.set(match.foundName, match.existingId);
             } else {
-                // Insert new creator
-                const newId = randomUUID();
-                // Check if creator already exists by name before inserting (race condition safety)
                 const existing = db.select({ id: creators.id }).from(creators).where(eq(creators.name, match.foundName)).get();
-
                 if (existing) {
                     creatorMap.set(match.foundName, existing.id);
                 } else {
-                    db.insert(creators)
-                        .values({
-                            id: newId,
-                            name: match.foundName,
-                        })
-                        .onConflictDoUpdate({
-                            target: creators.name,
-                            set: { updatedAt: sql`CURRENT_TIMESTAMP` },
-                        })
-                        .run();
+                    const newId = randomUUID();
+                    db.insert(creators).values({ id: newId, name: match.foundName }).run();
                     creatorMap.set(match.foundName, newId);
                 }
             }
         }
 
-        // Process each item
-        const processedSets = new Set<string>();
-
-        // Use a transaction for better performance if possible, but Drizzle SQLite sync driver handles direct queries fine for now.
-        // We will batch operations logically to avoid too many small queries if needed, but current approach is fine for SQLite local.
+        // Cache sets to minimize DB hits: creatorId:parentSetId:setName -> setId
+        // Using a simple Map key strategy
+        const setCache = new Map<string, string>();
 
         for (const item of results) {
             let creatorId = creatorMap.get(item.creatorName);
 
             if (!creatorId) {
-                // Fallback for creators that weren't in the matches list (e.g. Unknown or strict matches missed)
-                // Try to find or creating on the fly
+                // Fallback create
                 const existing = db.select({ id: creators.id }).from(creators).where(eq(creators.name, item.creatorName)).get();
                 if (existing) {
                     creatorId = existing.id;
@@ -220,65 +229,62 @@ export class ZipScanner {
                 creatorMap.set(item.creatorName, creatorId);
             }
 
-            // Insert Set
-            // Composite key logical check to avoid spamming DB
-            const setKey = `${creatorId}-${item.setName}`;
-            let setId: string | undefined;
+            // Resolve Set Hierarchy
+            let currentParentId: string | null = null;
+            let currentSetId: string | undefined;
 
-            // Optimization: In a real large import, we would cache sets too. 
-            // For now, let's just do the insert.
+            for (const setName of item.setHierarchy) {
+                const cacheKey: string = `${creatorId}:${currentParentId}:${setName.toLowerCase()}`;
 
-            // Try to find set
-            // Try to find set (Case Insensitive to avoid duplicates likely)
-            let setResult = db
-                .select({ id: ccSets.id })
-                .from(ccSets)
-                .where(sql`${ccSets.creatorId} = ${creatorId} AND lower(${ccSets.name}) = lower(${item.setName})`)
-                .get();
-
-            if (!setResult) {
-                const newSetId = randomUUID();
-                // Ensure we don't insert duplicate if race condition, though unlikely in single thread sqlite
-                const checkAgain = db.select({ id: ccSets.id }).from(ccSets)
-                    .where(sql`${ccSets.creatorId} = ${creatorId} AND lower(${ccSets.name}) = lower(${item.setName})`)
-                    .get();
-
-                if (checkAgain) {
-                    setResult = checkAgain;
-                } else {
-                    db.insert(ccSets)
-                        .values({
-                            id: newSetId,
-                            creatorId: creatorId,
-                            name: item.setName,
-                        })
-                        .run();
-                    setResult = { id: newSetId };
+                if (setCache.has(cacheKey)) {
+                    currentParentId = setCache.get(cacheKey)!;
+                    currentSetId = currentParentId;
+                    continue;
                 }
+
+                // DB Lookup
+                let setQuery = sql`${ccSets.creatorId} = ${creatorId} AND lower(${ccSets.name}) = lower(${setName})`;
+                if (currentParentId) {
+                    setQuery = sql`${setQuery} AND ${ccSets.parentId} = ${currentParentId}`;
+                } else {
+                    setQuery = sql`${setQuery} AND (${ccSets.parentId} IS NULL OR ${ccSets.parentId} = '')`;
+                }
+
+                let set = db.select({ id: ccSets.id }).from(ccSets).where(setQuery).get();
+
+                if (!set) {
+                    const newSetId = randomUUID();
+                    db.insert(ccSets).values({
+                        id: newSetId,
+                        creatorId: creatorId,
+                        name: setName,
+                        parentId: currentParentId
+                    }).run();
+                    set = { id: newSetId };
+                }
+
+                currentParentId = set.id;
+                currentSetId = set.id;
+                setCache.set(cacheKey, set.id);
             }
 
-            // Check if Item exists in ANY set for this creator
-            const existingItem = db.select({ id: ccItems.id })
-                .from(ccItems)
-                .leftJoin(ccSets, eq(ccItems.ccSetId, ccSets.id))
-                .where(sql`${ccSets.creatorId} = ${creatorId} AND lower(${ccItems.fileName}) = lower(${item.fileName})`)
-                .get();
-
-            if (existingItem) {
-                continue;
-            }
+            if (!currentSetId) continue; // Should not happen
 
             // Insert Item
-            db.insert(ccItems)
-                .values({
+            const itemExists = db.select({ id: ccItems.id })
+                .from(ccItems)
+                .where(sql`${ccItems.ccSetId} = ${currentSetId} AND lower(${ccItems.fileName}) = lower(${item.fileName})`)
+                .get();
+
+            if (!itemExists) {
+                db.insert(ccItems).values({
                     id: randomUUID(),
-                    ccSetId: setResult.id || '', // Should not be empty logic
-                    fileName: item.fileName,
-                })
-                .run();
+                    ccSetId: currentSetId,
+                    fileName: item.fileName
+                }).run();
+            }
         }
 
-        // Save database to disk after all mutations
         saveDatabase();
     }
 }

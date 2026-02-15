@@ -45,6 +45,15 @@ export const ccSets = sqliteTable('cc_sets', {
 });
 
 /**
+ * Scan History Folders table
+ */
+export const scanHistoryFolders = sqliteTable('scan_history_folders', {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+/**
  * Scan History table - stores logs of previous scans
  */
 export const scanHistory = sqliteTable('scan_history', {
@@ -55,6 +64,7 @@ export const scanHistory = sqliteTable('scan_history', {
     creatorsFound: integer('creators_found').default(0),
     status: text('status').default('success'),
     scannedFiles: text('scanned_files'), // JSON string of file names
+    folderId: text('folder_id').references(() => scanHistoryFolders.id),
 });
 
 /**
@@ -85,3 +95,6 @@ export type NewCcSet = typeof ccSets.$inferInsert;
 
 export type CcItem = typeof ccItems.$inferSelect;
 export type NewCcItem = typeof ccItems.$inferInsert;
+
+export type ScanHistoryFolder = typeof scanHistoryFolders.$inferSelect;
+export type NewScanHistoryFolder = typeof scanHistoryFolders.$inferInsert;

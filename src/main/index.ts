@@ -16,7 +16,7 @@ import { fileURLToPath } from 'url';
 import { initDatabase, getDb, saveDatabase } from './db/database.js';
 import { ZipScanner } from './lib/ZipScanner.js';
 import { ReportGenerator } from './lib/ReportGenerator.js';
-import { creators, ccSets, ccItems, scanHistory } from './db/schema.js';
+import { creators, ccSets, ccItems, scanHistory, scanHistoryFolders } from './db/schema.js';
 import { eq, sql, desc, asc, inArray } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 
@@ -146,7 +146,7 @@ ipcMain.handle('get-creator-details', async (_, id) => {
     };
 });
 
-ipcMain.handle('create-set', async (_, { creatorId, name, parentId }: any) => {
+ipcMain.handle('create-set', async (_, { creatorId, name, parentId, patreonUrl, websiteUrl }: any) => {
     if (!dbInitialized) throw new Error('Database not initialized');
     const db = getDb();
     const newId = randomUUID();
@@ -156,6 +156,8 @@ ipcMain.handle('create-set', async (_, { creatorId, name, parentId }: any) => {
         creatorId,
         name,
         parentId: parentId || null,
+        patreonUrl: patreonUrl || null,
+        websiteUrl: websiteUrl || null,
         updatedAt: sql`CURRENT_TIMESTAMP`
     }).run();
 
@@ -563,10 +565,27 @@ ipcMain.handle('import-csv', async () => {
                     const cleanName = fName.trim();
                     if (!cleanName) continue;
 
-                    db.update(ccItems)
-                        .set({ ccSetId: setId, updatedAt: sql`CURRENT_TIMESTAMP` })
+                    // Check if exists
+                    const existingItem = db.select({ id: ccItems.id })
+                        .from(ccItems)
                         .where(eq(ccItems.fileName, cleanName))
-                        .run();
+                        .get();
+
+                    if (existingItem) {
+                        db.update(ccItems)
+                            .set({ ccSetId: setId, updatedAt: sql`CURRENT_TIMESTAMP` })
+                            .where(eq(ccItems.id, existingItem.id))
+                            .run();
+                    } else {
+                        db.insert(ccItems)
+                            .values({
+                                id: randomUUID(),
+                                ccSetId: setId,
+                                fileName: cleanName,
+                                updatedAt: sql`CURRENT_TIMESTAMP`
+                            })
+                            .run();
+                    }
                 }
             }
             updatedCount++;
@@ -742,6 +761,20 @@ if (!gotTheLock) {
                 // Column likely exists
             }
 
+            try {
+                const db = getDb();
+                db.run(sql`CREATE TABLE IF NOT EXISTS scan_history_folders (id TEXT PRIMARY KEY, name TEXT NOT NULL, created_at TEXT DEFAULT CURRENT_TIMESTAMP)`);
+            } catch (e) {
+                console.log('Error creating scan_history_folders table', e);
+            }
+
+            try {
+                const db = getDb();
+                db.run(sql`ALTER TABLE scan_history ADD COLUMN folder_id TEXT references scan_history_folders(id)`);
+            } catch (e) {
+                // Column likely exists
+            }
+
             console.log('[MAIN] initDatabase OK');
             dbInitialized = true;
         } catch (err) {
@@ -760,6 +793,51 @@ ipcMain.handle('delete-history-item', async (_, id) => {
     db.delete(scanHistory).where(eq(scanHistory.id, id)).run();
     saveDatabase();
     return true;
+});
+
+ipcMain.handle('get-history-folders', async () => {
+    if (!dbInitialized) throw new Error('Database not initialized');
+    const db = getDb();
+    return db.select().from(scanHistoryFolders).orderBy(desc(scanHistoryFolders.createdAt)).all();
+});
+
+ipcMain.handle('create-history-folder', async (_, name) => {
+    if (!dbInitialized) throw new Error('Database not initialized');
+    const db = getDb();
+    const newId = randomUUID();
+    db.insert(scanHistoryFolders).values({
+        id: newId,
+        name,
+        createdAt: sql`CURRENT_TIMESTAMP`
+    }).run();
+    saveDatabase();
+    return { id: newId, name };
+});
+
+ipcMain.handle('move-history-item', async (_, { historyId, folderId }) => {
+    if (!dbInitialized) throw new Error('Database not initialized');
+    const db = getDb();
+    db.update(scanHistory)
+        .set({ folderId: folderId }) // can be null to move to root
+        .where(eq(scanHistory.id, historyId))
+        .run();
+    saveDatabase();
+    return { success: true };
+});
+
+ipcMain.handle('delete-history-folder', async (_, folderId) => {
+    if (!dbInitialized) throw new Error('Database not initialized');
+    const db = getDb();
+
+    // Move items back to root
+    db.update(scanHistory)
+        .set({ folderId: null })
+        .where(eq(scanHistory.folderId, folderId))
+        .run();
+
+    db.delete(scanHistoryFolders).where(eq(scanHistoryFolders.id, folderId)).run();
+    saveDatabase();
+    return { success: true };
 });
 
 ipcMain.handle('merge-sets', async (_, { sourceSetId, targetSetId }) => {

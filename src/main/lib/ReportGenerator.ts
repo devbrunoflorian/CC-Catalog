@@ -96,7 +96,7 @@ export class ReportGenerator {
                         }
 
                         const indent = '  '.repeat(level);
-                        const headerPrefix = level === 0 ? '### 📁' : '#### 📂'; // Use level to differentiate
+                        const headerPrefix = level === 0 ? '### ' : '#### '; // Use level to differentiate
 
                         report += `${headerPrefix} ${setName}\n`;
 
@@ -109,7 +109,7 @@ export class ReportGenerator {
 
                             if (items.length > 0) {
                                 items.forEach(item => {
-                                    report += `- 📦 \`${item.fileName}\``;
+                                    report += `- \`${item.fileName}\``;
                                     if (options.includeCategory && item.categoryId) {
                                         const cat = db.select().from(categories).where(eq(categories.id, item.categoryId)).get();
                                         if (cat) report += ` _[${cat.name}]_`;

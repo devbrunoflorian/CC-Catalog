@@ -114,6 +114,29 @@ const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger }) => {
     const [showMoveModal, setShowMoveModal] = useState(false);
     const [moveSearch, setMoveSearch] = useState('');
 
+    // Merge/Nest Option UI
+    const [mergeOptionModal, setMergeOptionModal] = useState<{ show: boolean, sourceId: string | null, targetId: string | null }>({ show: false, sourceId: null, targetId: null });
+
+    const handleMergeOption = async (action: 'nest' | 'merge') => {
+        const { sourceId, targetId } = mergeOptionModal;
+        if (!sourceId || !targetId) return;
+
+        if (action === 'nest') {
+            await (window as any).electron.invoke('move-set', {
+                setId: sourceId,
+                targetParentId: targetId
+            });
+        } else {
+            await (window as any).electron.invoke('merge-sets', {
+                sourceSetId: sourceId,
+                targetSetId: targetId
+            });
+        }
+
+        setMergeOptionModal({ show: false, sourceId: null, targetId: null });
+        loadCreatorDetails(selectedCreatorId || '');
+    };
+
     // Memoized sorted sets tree
     const sortedSetsTree = useMemo(() => {
         if (!creatorDetails) return [];
@@ -154,11 +177,12 @@ const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger }) => {
         });
 
         return (
-            <div key={set.id} className={level > 0 ? 'ml-6 mt-3' : ''}>
+            <div key={set.id} className={level > 0 ? 'ml-6 border-l border-white/5 pl-2' : 'mt-3'}>
                 <div
                     id={`set-${set.id}`}
                     className={`
-                    relative bg-white/[0.02] border rounded-xl overflow-hidden transition-all duration-300
+                    relative border rounded-xl overflow-hidden transition-all duration-300
+                    ${level > 0 ? 'bg-transparent border-transparent' : 'bg-white/[0.02] border-white/5'}
                     ${draggingSetId === set.id ? 'opacity-50 scale-95' : ''}
                     ${dropTargetSetId === set.id && dropPosition === 'merge'
                             ? 'border-brand-primary bg-brand-primary/20 shadow-[0_0_30px_hsl(var(--brand-primary)/0.2)] scale-[1.02]'
@@ -379,9 +403,9 @@ const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger }) => {
 
                     {/* Set Expanded Context */}
                     {expandedSets.has(set.id) && (
-                        <div className="bg-black/10 border-t border-white/5">
+                        <div className="">
                             {/* Items List (Collapsible) */}
-                            <div className="bg-black/20 min-h-[40px] shadow-inner">
+                            <div className="min-h-[40px]">
                                 {sortedItems.map(item => (
                                     <div
                                         key={item.id}
@@ -793,11 +817,8 @@ const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger }) => {
             }
 
             if (dropPosition === 'merge') {
-                await (window as any).electron.invoke('merge-sets', {
-                    sourceSetId: draggingSetId,
-                    targetSetId: targetSetId
-                });
-                loadCreatorDetails(selectedCreatorId || '');
+                // Trigger option modal instead of automatic action
+                setMergeOptionModal({ show: true, sourceId: draggingSetId, targetId: targetSetId });
             } else if ((dropPosition === 'before' || dropPosition === 'after') && setSort === 'custom') {
                 if (!creatorDetails) return;
 
@@ -1261,6 +1282,56 @@ const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger }) => {
                                         </button>
                                     ))}
                             </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Merge/Nest Option Modal */}
+                {mergeOptionModal.show && (
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-6 animate-in fade-in duration-200">
+                        <div className="bg-bg-card border border-border-subtle rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 p-6 flex flex-col gap-6">
+                            <div className="text-center space-y-2">
+                                <div className="w-12 h-12 rounded-full bg-brand-primary/10 flex items-center justify-center mx-auto text-brand-primary mb-2">
+                                    <FolderPlus size={24} />
+                                </div>
+                                <h3 className="text-xl font-bold text-white">Organize Sets</h3>
+                                <p className="text-sm text-slate-400">How would you like to handle this drop?</p>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-3">
+                                <button
+                                    onClick={() => handleMergeOption('nest')}
+                                    className="p-4 bg-brand-primary/10 border border-brand-primary/30 hover:border-brand-primary hover:bg-brand-primary/20 rounded-xl transition-all flex items-center gap-4 group text-left"
+                                >
+                                    <div className="bg-brand-primary/20 p-2 rounded-lg text-brand-primary group-hover:scale-110 transition-transform">
+                                        <FolderPlus size={20} />
+                                    </div>
+                                    <div>
+                                        <div className="font-bold text-brand-secondary">Nest as Sub-folder</div>
+                                        <div className="text-xs text-slate-500">Move inside as a child folder</div>
+                                    </div>
+                                </button>
+
+                                <button
+                                    onClick={() => handleMergeOption('merge')}
+                                    className="p-4 bg-white/5 border border-white/10 hover:border-brand-primary/30 hover:bg-white/10 rounded-xl transition-all flex items-center gap-4 group text-left"
+                                >
+                                    <div className="bg-white/10 p-2 rounded-lg text-slate-300 group-hover:scale-110 transition-transform">
+                                        <ArrowRight size={20} />
+                                    </div>
+                                    <div>
+                                        <div className="font-bold text-slate-200">Merge Contents</div>
+                                        <div className="text-xs text-slate-500">Combine items into one folder</div>
+                                    </div>
+                                </button>
+                            </div>
+
+                            <button
+                                onClick={() => setMergeOptionModal({ show: false, sourceId: null, targetId: null })}
+                                className="w-full py-3 rounded-xl bg-transparent hover:bg-white/5 text-slate-500 hover:text-slate-300 transition-colors font-medium text-sm"
+                            >
+                                Cancel
+                            </button>
                         </div>
                     </div>
                 )}
