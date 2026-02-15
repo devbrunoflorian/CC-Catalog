@@ -117,6 +117,9 @@ const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger }) => {
     // Merge/Nest Option UI
     const [mergeOptionModal, setMergeOptionModal] = useState<{ show: boolean, sourceId: string | null, targetId: string | null }>({ show: false, sourceId: null, targetId: null });
 
+    // Creator Drop Target
+    const [dropTargetCreatorId, setDropTargetCreatorId] = useState<string | null>(null);
+
     const handleMergeOption = async (action: 'nest' | 'merge') => {
         const { sourceId, targetId } = mergeOptionModal;
         if (!sourceId || !targetId) return;
@@ -135,6 +138,32 @@ const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger }) => {
 
         setMergeOptionModal({ show: false, sourceId: null, targetId: null });
         loadCreatorDetails(selectedCreatorId || '');
+    };
+
+    const handleCreatorDragOver = (e: React.DragEvent, creatorId: string) => {
+        if (!draggingSetId) return; // Only allow dragging SETS onto creators
+        if (selectedCreatorId === creatorId) return; // Don't move to same creator
+        e.preventDefault();
+        setDropTargetCreatorId(creatorId);
+    };
+
+    const handleCreatorDrop = async (e: React.DragEvent, targetCreatorId: string) => {
+        e.preventDefault();
+        if (!draggingSetId) return;
+
+        if (confirm('Move this set to ' + creatorsList.find(c => c.id === targetCreatorId)?.name + '?')) {
+            await (window as any).electron.invoke('move-set', {
+                setId: draggingSetId,
+                targetCreatorId: targetCreatorId
+            });
+
+            // Reload details (current creator will lose the set)
+            loadCreatorsList();
+            if (selectedCreatorId) loadCreatorDetails(selectedCreatorId);
+        }
+
+        setDropTargetCreatorId(null);
+        setDraggingSetId(null);
     };
 
     // Memoized sorted sets tree
@@ -988,9 +1017,13 @@ const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger }) => {
                         <div
                             key={creator.id}
                             onClick={() => setSelectedCreatorId(creator.id)}
-                            className={`p-4 rounded-xl cursor-pointer transition-all duration-300 border group relative overflow-hidden ${selectedCreatorId === creator.id
-                                ? 'bg-brand-primary/10 border-brand-primary/50 shadow-[0_0_20px_hsl(var(--brand-primary)/0.2)]'
-                                : 'bg-transparent border-transparent hover:bg-white/5 hover:border-brand-primary/30 hover:shadow-[0_0_15px_hsl(var(--brand-primary)/0.15)]'
+                            onDragOver={(e) => handleCreatorDragOver(e, creator.id)}
+                            onDragLeave={() => setDropTargetCreatorId(null)}
+                            onDrop={(e) => handleCreatorDrop(e, creator.id)}
+                            className={`p-4 rounded-xl cursor-pointer transition-all duration-300 border group relative overflow-hidden ${dropTargetCreatorId === creator.id ? 'bg-brand-primary/20 border-brand-primary border-dashed scale-[1.02] shadow-[0_0_20px_hsl(var(--brand-primary)/0.3)]' :
+                                    selectedCreatorId === creator.id
+                                        ? 'bg-brand-primary/10 border-brand-primary/50 shadow-[0_0_20px_hsl(var(--brand-primary)/0.2)]'
+                                        : 'bg-transparent border-transparent hover:bg-white/5 hover:border-brand-primary/30 hover:shadow-[0_0_15px_hsl(var(--brand-primary)/0.15)]'
                                 }`}
                         >
                             <div className={`font-bold transition-colors ${selectedCreatorId === creator.id ? 'text-brand-secondary' : 'text-slate-300 group-hover:text-slate-100'}`}>

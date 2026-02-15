@@ -801,6 +801,35 @@ ipcMain.handle('get-history-folders', async () => {
     return db.select().from(scanHistoryFolders).orderBy(desc(scanHistoryFolders.createdAt)).all();
 });
 
+ipcMain.handle('move-set', async (_, { setId, targetParentId, targetCreatorId }) => {
+    if (!dbInitialized) throw new Error('Database not initialized');
+    const db = getDb();
+
+    const updateData: any = {
+        updatedAt: sql`CURRENT_TIMESTAMP`
+    };
+
+    if (targetParentId !== undefined) {
+        updateData.parentId = targetParentId;
+    }
+
+    if (targetCreatorId !== undefined) {
+        updateData.creatorId = targetCreatorId;
+        // If moving to a new creator at the root level, ensure parentId is cleared if not specified
+        if (targetParentId === undefined) {
+            updateData.parentId = null;
+        }
+    }
+
+    db.update(ccSets)
+        .set(updateData)
+        .where(eq(ccSets.id, setId))
+        .run();
+
+    saveDatabase();
+    return { success: true };
+});
+
 ipcMain.handle('create-history-folder', async (_, name) => {
     if (!dbInitialized) throw new Error('Database not initialized');
     const db = getDb();
