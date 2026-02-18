@@ -352,15 +352,26 @@ ipcMain.handle('scan-zip', async () => {
     if (!dbInitialized) throw new Error('Database not initialized');
     const { canceled, filePaths } = await dialog.showOpenDialog({
         properties: ['openFile'],
-        filters: [{ name: 'ZIP Files', extensions: ['zip'] }],
+        filters: [{ name: 'CC Files', extensions: ['zip', 'rar', 'package'] }],
     });
 
     if (canceled || filePaths.length === 0) return null;
 
+    const filePath = filePaths[0];
+    const ext = extname(filePath).toLowerCase();
+
     try {
-        const analysis = await ZipScanner.scanZip(filePaths[0]);
+        let analysis;
+        if (ext === '.package') {
+            analysis = await ZipScanner.scanPackage(filePath);
+        } else if (ext === '.rar') {
+            analysis = await ZipScanner.scanRar(filePath);
+        } else {
+            analysis = await ZipScanner.scanZip(filePath);
+        }
+
         // Return file path too so we can log it later
-        return { ...analysis, filePath: filePaths[0] };
+        return { ...analysis, filePath: filePath };
     } catch (error) {
         console.error('Scan failed:', error);
         throw error;
