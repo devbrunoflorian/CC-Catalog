@@ -351,8 +351,13 @@ ipcMain.handle('delete-creator', async (_, { id, deleteSets }) => {
 ipcMain.handle('scan-zip', async () => {
     if (!dbInitialized) throw new Error('Database not initialized');
     const { canceled, filePaths } = await dialog.showOpenDialog({
-        properties: ['openFile'],
-        filters: [{ name: 'CC Files', extensions: ['zip', 'rar', 'package'] }],
+        properties: ['openFile', 'multiSelections'],
+        filters: [
+            { name: 'All CC Files', extensions: ['package', 'zip', 'rar'] },
+            { name: 'Package Files', extensions: ['package'] },
+            { name: 'ZIP Archives', extensions: ['zip'] },
+            { name: 'RAR Archives', extensions: ['rar'] }
+        ],
     });
 
     if (canceled || filePaths.length === 0) return null;

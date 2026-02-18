@@ -443,7 +443,7 @@ const DashboardContent: React.FC = () => {
                                 }`}
                         >
                             <Upload size={18} />
-                            {scanning ? 'Scanning...' : 'Scan ZIP'}
+                            {scanning ? 'Scanning...' : 'Scan Files'}
                         </button>
                     </div>
                 </header>
@@ -569,7 +569,7 @@ const DashboardContent: React.FC = () => {
                                             </div>
                                             <h3 className="text-lg font-semibold text-slate-300">Your library is empty</h3>
                                             <p className="text-slate-500 max-w-sm mx-auto">
-                                                Scan your first ZIP file containing Custom Content to begin building your credits database.
+                                                Scan your first file containing Custom Content to begin building your credits database.
                                             </p>
                                         </div>
                                     ) : (
