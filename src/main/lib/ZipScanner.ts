@@ -1,4 +1,6 @@
 import yauzl from 'yauzl';
+import { createExtractorFromData } from 'node-unrar-js';
+import { readFile } from 'fs/promises';
 import { randomUUID } from 'crypto';
 import { getDb, getRawDb, saveDatabase } from '../db/database.js';
 import { creators, ccSets, ccItems } from '../db/schema.js';
@@ -33,6 +35,189 @@ export interface ScanAnalysis {
 }
 
 export class ZipScanner {
+    static async scanPackage(filePath: string): Promise<ScanAnalysis> {
+        return new Promise((resolve) => {
+            const fileName = filePath.split(/[\\/]/).pop() || 'Unknown.package';
+            const results: ScanResult[] = [{
+                creatorName: 'Unknown', // We can't really guess creator from a single package file unless we parse the filename or path
+                setHierarchy: ['Single items'],
+                fileName: fileName
+            }];
+
+            // Attempt to guess creator from filename if it follows "Creator_Item.package" pattern
+            const parts = fileName.split(/[_ -]/);
+            if (parts.length > 1) {
+                results[0].creatorName = parts[0];
+            }
+
+            // Auto-confirm single package files to avoid annoyance?
+            // Or better, let the standard process run so duplicates are checked.
+            const matches: CreatorMatch[] = [];
+            const duplicates: DuplicateItem[] = []; // checking will happen in confirm-scan usually? 
+            // Wait, processScanResults handles the heavy lifting of DB checks, but we need to return "duplicates" structure here if we want the UI warn about them immediately.
+            // The scanZip implementation does a pre-check. We should duplicate that logic or refactor.
+            // For now, let's keep it simple and just return the result. The duplicate check logic in scanZip is coupled to the zip reading stream.
+
+            // Reuse the deduplication logic?
+            // Let's refactor the deduplication logic out of scanZip if possible, or just copy it for now to avoid breaking changes.
+            // Start with a helper method.
+            resolve(ZipScanner.analyzeResults(results));
+        });
+    }
+
+    static async scanRar(filePath: string): Promise<ScanAnalysis> {
+        try {
+            const buf = await readFile(filePath);
+            const arrayBuffer = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+            const extractor = await createExtractorFromData({ data: arrayBuffer });
+
+            const results: ScanResult[] = [];
+
+            for (const file of extractor.getFileList().fileHeaders) {
+                if (file.flags.directory) continue;
+                if (!file.name.endsWith('.package')) continue;
+
+                const pathParts = file.name.split(/[\\/]/); // RAR might use backslash?
+                let creatorName = 'Unknown';
+                let setHierarchy: string[] = [];
+                const fileName = pathParts[pathParts.length - 1];
+
+                if (pathParts.length >= 2) {
+                    if (pathParts[0] === 'Mods') {
+                        if (pathParts.length > 2) {
+                            creatorName = pathParts[1];
+                            setHierarchy = pathParts.slice(2, pathParts.length - 1);
+                        }
+                    } else {
+                        creatorName = pathParts[0];
+                        setHierarchy = pathParts.slice(1, pathParts.length - 1);
+                    }
+                }
+
+                // Fallback to RAR name hint?
+                // Logic similar to scanZip...
+
+                if (setHierarchy.length === 0) setHierarchy = ['Unsorted'];
+                setHierarchy = setHierarchy.filter(s => s !== 'Mods');
+
+                results.push({ creatorName, setHierarchy, fileName });
+            }
+
+            return ZipScanner.analyzeResults(results);
+
+        } catch (err: any) {
+            console.error('RAR Scan failed:', err);
+            throw new Error(`Failed to scan RAR: ${err.message}`);
+        }
+    }
+
+    static async analyzeResults(results: ScanResult[]): Promise<ScanAnalysis> {
+        const uniqueCreators = new Set<string>();
+        results.forEach(r => uniqueCreators.add(r.creatorName));
+
+        const db = getDb();
+        const existingCreators = db.select({ id: creators.id, name: creators.name }).from(creators).all();
+        const matches: CreatorMatch[] = [];
+        const duplicates: DuplicateItem[] = [];
+        const filteredResults: ScanResult[] = [];
+
+        for (const res of results) {
+            const existingItem = db.select({
+                itemId: ccItems.id,
+                setId: ccItems.ccSetId
+            }).from(ccItems)
+                .where(eq(ccItems.fileName, res.fileName))
+                .get();
+
+            if (existingItem) {
+                const setInfo = db.select({
+                    setName: ccSets.name,
+                    creatorId: ccSets.creatorId,
+                    parentId: ccSets.parentId
+                }).from(ccSets).where(eq(ccSets.id, existingItem.setId)).get();
+
+                let existingCreatorName = 'Unknown';
+                let existingSetName = 'Unknown';
+                let existingSetHierarchy: string[] = [];
+
+                if (setInfo) {
+                    existingSetName = setInfo.setName;
+                    const creatorInfo = db.select({ name: creators.name }).from(creators).where(eq(creators.id, setInfo.creatorId)).get();
+                    if (creatorInfo) existingCreatorName = creatorInfo.name;
+
+                    if (setInfo.parentId) {
+                        const parentSet = db.select({ name: ccSets.name }).from(ccSets).where(eq(ccSets.id, setInfo.parentId)).get();
+                        if (parentSet) existingSetHierarchy = [parentSet.name, existingSetName];
+                        else existingSetHierarchy = [existingSetName];
+                    } else {
+                        existingSetHierarchy = [existingSetName];
+                    }
+                }
+
+                duplicates.push({
+                    fileName: res.fileName,
+                    existingCreatorName,
+                    existingSetName,
+                    existingSetHierarchy
+                });
+            } else {
+                filteredResults.push(res);
+            }
+        }
+
+        uniqueCreators.forEach((creatorName) => {
+            if (creatorName === 'Unknown') return;
+            const nameLower = creatorName.toLowerCase();
+            const exactMatch = existingCreators.find((c) => c.name.toLowerCase() === nameLower);
+
+            if (exactMatch) {
+                matches.push({
+                    foundName: creatorName,
+                    existingName: exactMatch.name,
+                    existingId: exactMatch.id,
+                    similarity: 1,
+                    needsConfirmation: false,
+                });
+                return;
+            }
+
+            let bestMatch: { id: string; name: string; score: number } | null = null;
+            for (const existing of existingCreators) {
+                const existingLower = existing.name.toLowerCase();
+                let score = getSimilarity(creatorName, existing.name);
+
+                if (nameLower.includes(existingLower) || existingLower.includes(nameLower)) {
+                    score = Math.max(score, 0.9);
+                }
+
+                if (nameLower.startsWith(existingLower) || existingLower.startsWith(nameLower)) {
+                    score = Math.max(score, 0.95);
+                }
+
+                if (score > 0.6 && (!bestMatch || score > bestMatch.score)) {
+                    bestMatch = { ...existing, score };
+                }
+            }
+            if (bestMatch && bestMatch.score > 0.6) {
+                matches.push({
+                    foundName: creatorName,
+                    existingName: bestMatch.name,
+                    existingId: bestMatch.id,
+                    similarity: bestMatch.score,
+                    needsConfirmation: bestMatch.score < 0.95,
+                });
+            } else {
+                matches.push({
+                    foundName: creatorName,
+                    similarity: 0,
+                    needsConfirmation: true,
+                });
+            }
+        });
+
+        return { results: filteredResults, matches, duplicates };
+    }
+
     static scanZip(filePath: string): Promise<ScanAnalysis> {
         return new Promise((resolve, reject) => {
             const results: ScanResult[] = [];
@@ -130,116 +315,7 @@ export class ZipScanner {
                 });
 
                 zipfile.on('end', () => {
-                    const db = getDb();
-                    const existingCreators = db.select({ id: creators.id, name: creators.name }).from(creators).all();
-                    const matches: CreatorMatch[] = [];
-
-                    // --- DUPLICATE DETECTION --
-                    const duplicates: DuplicateItem[] = [];
-                    const filteredResults: ScanResult[] = [];
-
-                    for (const res of results) {
-                        const existingItem = db.select({
-                            itemId: ccItems.id,
-                            setId: ccItems.ccSetId
-                        }).from(ccItems)
-                            .where(eq(ccItems.fileName, res.fileName))
-                            .get();
-
-                        if (existingItem) {
-                            // Item exists, resolve details for reporting
-                            const setInfo = db.select({
-                                setName: ccSets.name,
-                                creatorId: ccSets.creatorId,
-                                parentId: ccSets.parentId
-                            }).from(ccSets).where(eq(ccSets.id, existingItem.setId)).get();
-
-                            let existingCreatorName = 'Unknown';
-                            let existingSetName = 'Unknown';
-                            let existingSetHierarchy: string[] = [];
-
-                            if (setInfo) {
-                                existingSetName = setInfo.setName;
-                                const creatorInfo = db.select({ name: creators.name }).from(creators).where(eq(creators.id, setInfo.creatorId)).get();
-                                if (creatorInfo) existingCreatorName = creatorInfo.name;
-
-                                // Resolve hierarchy (simplified, just parent -> set)
-                                // If needed, we could traverse up, but let's at least get immediate parent
-                                if (setInfo.parentId) {
-                                    const parentSet = db.select({ name: ccSets.name }).from(ccSets).where(eq(ccSets.id, setInfo.parentId)).get();
-                                    if (parentSet) existingSetHierarchy = [parentSet.name, existingSetName];
-                                    else existingSetHierarchy = [existingSetName];
-                                } else {
-                                    existingSetHierarchy = [existingSetName];
-                                }
-                            }
-
-                            duplicates.push({
-                                fileName: res.fileName,
-                                existingCreatorName,
-                                existingSetName,
-                                existingSetHierarchy
-                            });
-                        } else {
-                            filteredResults.push(res);
-                        }
-                    }
-                    // --------------------------
-
-                    uniqueCreators.forEach((creatorName) => {
-                        if (creatorName === 'Unknown') return;
-
-                        const nameLower = creatorName.toLowerCase();
-                        const exactMatch = existingCreators.find((c) => c.name.toLowerCase() === nameLower);
-
-                        if (exactMatch) {
-                            matches.push({
-                                foundName: creatorName,
-                                existingName: exactMatch.name,
-                                existingId: exactMatch.id,
-                                similarity: 1,
-                                needsConfirmation: false,
-                            });
-                            return;
-                        }
-
-                        let bestMatch: { id: string; name: string; score: number } | null = null;
-
-                        for (const existing of existingCreators) {
-                            const existingLower = existing.name.toLowerCase();
-                            let score = getSimilarity(creatorName, existing.name);
-
-                            if (nameLower.includes(existingLower) || existingLower.includes(nameLower)) {
-                                score = Math.max(score, 0.9);
-                            }
-
-                            if (nameLower.startsWith(existingLower) || existingLower.startsWith(nameLower)) {
-                                score = Math.max(score, 0.95);
-                            }
-
-                            if (score > 0.6 && (!bestMatch || score > bestMatch.score)) {
-                                bestMatch = { ...existing, score };
-                            }
-                        }
-
-                        if (bestMatch && bestMatch.score > 0.6) {
-                            matches.push({
-                                foundName: creatorName,
-                                existingName: bestMatch.name,
-                                existingId: bestMatch.id,
-                                similarity: bestMatch.score,
-                                needsConfirmation: bestMatch.score < 0.95,
-                            });
-                        } else {
-                            matches.push({
-                                foundName: creatorName,
-                                similarity: 0,
-                                needsConfirmation: true,
-                            });
-                        }
-                    });
-
-                    resolve({ results: filteredResults, matches, duplicates });
+                    resolve(ZipScanner.analyzeResults(results));
                 });
 
                 zipfile.on('error', (err) => {
