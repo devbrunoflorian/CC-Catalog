@@ -95,6 +95,7 @@ const DashboardContent: React.FC = () => {
     const [editForm, setEditForm] = useState({ patreon_url: '', website_url: '' });
 
     const [history, setHistory] = useState<ScanLog[]>([]);
+    const [buildingsHistory, setBuildingsHistory] = useState<ScanLog[]>([]);
     const [healthMetrics, setHealthMetrics] = useState<HealthMetrics | null>(null);
 
     const loadCredits = async () => {
@@ -105,6 +106,8 @@ const DashboardContent: React.FC = () => {
     const loadHistory = async () => {
         const data = await (window as any).electron.invoke('get-history');
         setHistory(data);
+        const buildings = await (window as any).electron.invoke('get-history-by-category', 'buildings');
+        setBuildingsHistory(buildings);
     };
 
     const loadHealthMetrics = async () => {
@@ -418,17 +421,13 @@ const DashboardContent: React.FC = () => {
 
                         <button
                             onClick={() => {
-                                if (history.length > 0) {
-                                    const latest = history[0];
+                                if (buildingsHistory.length > 0) {
+                                    const first = buildingsHistory[0];
                                     let items: string[] = [];
-                                    try {
-                                        items = latest.scannedFiles ? JSON.parse(latest.scannedFiles) : [];
-                                    } catch (e) {
-                                        console.error('Failed to parse scanned files history', e);
-                                    }
-                                    handleOpenReportOptions({ type: 'scan', contextName: latest.fileName, items: items });
+                                    try { items = first.scannedFiles ? JSON.parse(first.scannedFiles) : []; } catch (e) { }
+                                    handleOpenReportOptions({ type: 'scan', contextName: first.fileName, items });
                                 } else {
-                                    alert('No scan history available to generate a report. Please scan a ZIP file first.');
+                                    alert('No buildings scanned yet. Go to History → Buildings tab and scan a building ZIP first.');
                                 }
                             }}
                             className="flex items-center gap-2 px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-semibold transition-all hover-glow"
@@ -688,23 +687,27 @@ const DashboardContent: React.FC = () => {
                     <div className="p-8 overflow-y-auto custom-scrollbar flex-grow">
                         <HistoryView
                             key={historyUpdateTrigger}
-                            onReport={(log) => {
-                                let items: string[] = [];
-                                try {
-                                    items = log.scannedFiles ? JSON.parse(log.scannedFiles) : [];
-                                } catch (e) {
-                                    console.error('Failed to parse scanned files history', e);
-                                }
+                            onBuildingSaved={() => setHistoryUpdateTrigger(prev => prev + 1)}
+                            onReport={(logs) => {
+                                // Merge scannedFiles from all selected buildings (deduplicated)
+                                const allItems = new Set<string>();
+                                logs.forEach(log => {
+                                    try {
+                                        const files = log.scannedFiles ? JSON.parse(log.scannedFiles) : [];
+                                        if (Array.isArray(files)) files.forEach((f: string) => allItems.add(f));
+                                    } catch (e) {
+                                        console.error('Failed to parse scanned files history', e);
+                                    }
+                                });
 
-                                if (items.length === 0) {
-                                    alert('No file details available for this historical scan.');
-                                    return;
-                                }
+                                const contextName = logs.length === 1
+                                    ? logs[0].fileName
+                                    : `${logs.length} Buildings`;
 
                                 handleOpenReportOptions({
                                     type: 'scan',
-                                    contextName: log.fileName,
-                                    items: items
+                                    contextName,
+                                    items: Array.from(allItems)
                                 });
                             }}
                         />
@@ -800,34 +803,36 @@ const DashboardContent: React.FC = () => {
                         </div>
                         <div className="p-8 space-y-6 overflow-y-auto custom-scrollbar">
 
-                            {/* Scan Selector */}
+                            {/* Buildings selector */}
                             <div className="space-y-2">
-                                <label className="text-xs font-bold uppercase tracking-widest text-slate-500 pl-1">Select Scan</label>
-                                <select
-                                    className="w-full bg-bg-dark border border-white/5 rounded-xl px-4 py-3 text-slate-200 outline-none focus:border-brand-primary/50 transition-colors"
-                                    value={reportSource.contextName}
-                                    onChange={(e) => {
-                                        const selectedLog = history.find(h => h.fileName === e.target.value);
-                                        if (selectedLog) {
-                                            let items: string[] = [];
-                                            try {
-                                                items = selectedLog.scannedFiles ? JSON.parse(selectedLog.scannedFiles) : [];
-                                            } catch (err) { console.error(err); }
-
-                                            setReportSource({
-                                                type: 'scan',
-                                                contextName: selectedLog.fileName,
-                                                items: items
-                                            });
-                                        }
-                                    }}
-                                >
-                                    {history.map(log => (
-                                        <option key={log.id} value={log.fileName}>
-                                            {log.fileName} ({new Date(log.scanDate).toLocaleDateString()}) - {log.itemsFound} items
-                                        </option>
-                                    ))}
-                                </select>
+                                <label className="text-xs font-bold uppercase tracking-widest text-slate-500 pl-1">Building</label>
+                                {buildingsHistory.length === 0 ? (
+                                    <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-2xl text-yellow-400 text-sm font-bold">
+                                        No buildings scanned yet. Go to History → Buildings and scan a ZIP first.
+                                    </div>
+                                ) : (
+                                    <select
+                                        className="w-full bg-bg-dark border border-white/5 rounded-xl px-4 py-3 text-slate-200 outline-none focus:border-brand-primary/50 transition-colors"
+                                        value={reportSource.contextName}
+                                        onChange={(e) => {
+                                            const selectedLog = buildingsHistory.find(h => h.fileName === e.target.value);
+                                            if (selectedLog) {
+                                                let items: string[] = [];
+                                                try { items = selectedLog.scannedFiles ? JSON.parse(selectedLog.scannedFiles) : []; } catch (err) { }
+                                                setReportSource({ type: 'scan', contextName: selectedLog.fileName, items });
+                                            }
+                                        }}
+                                    >
+                                        {buildingsHistory.map(log => (
+                                            <option key={log.id} value={log.fileName}>
+                                                {log.fileName} — {log.itemsFound} items
+                                            </option>
+                                        ))}
+                                    </select>
+                                )}
+                                {reportSource.items && reportSource.items.length > 0 && (
+                                    <p className="text-[10px] text-slate-500 pl-1">{reportSource.items.length} items will be included</p>
+                                )}
                             </div>
 
                             {/* Toggle Options */}

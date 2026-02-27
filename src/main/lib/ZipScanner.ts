@@ -50,19 +50,54 @@ export class ZipScanner {
                 results[0].creatorName = parts[0];
             }
 
-            // Auto-confirm single package files to avoid annoyance?
-            // Or better, let the standard process run so duplicates are checked.
             const matches: CreatorMatch[] = [];
-            const duplicates: DuplicateItem[] = []; // checking will happen in confirm-scan usually? 
-            // Wait, processScanResults handles the heavy lifting of DB checks, but we need to return "duplicates" structure here if we want the UI warn about them immediately.
-            // The scanZip implementation does a pre-check. We should duplicate that logic or refactor.
-            // For now, let's keep it simple and just return the result. The duplicate check logic in scanZip is coupled to the zip reading stream.
+            const duplicates: DuplicateItem[] = [];
 
-            // Reuse the deduplication logic?
-            // Let's refactor the deduplication logic out of scanZip if possible, or just copy it for now to avoid breaking changes.
-            // Start with a helper method.
             resolve(ZipScanner.analyzeResults(results));
         });
+    }
+
+    /**
+     * Lists all .package filenames from a ZIP/RAR/package without any duplicate filtering.
+     * Used by the building scan flow where all items must be recorded for report generation.
+     */
+    static async listAllFiles(filePath: string): Promise<string[]> {
+        const ext = filePath.split('.').pop()?.toLowerCase();
+        const fileNames: string[] = [];
+
+        if (ext === 'zip') {
+            await new Promise<void>((resolve, reject) => {
+                yauzl.open(filePath, { lazyEntries: true }, (err, zipfile) => {
+                    if (err) return reject(err);
+                    if (!zipfile) return reject(new Error('Failed to open zip'));
+                    zipfile.readEntry();
+                    zipfile.on('entry', (entry) => {
+                        if (!/\/$/.test(entry.fileName) && entry.fileName.endsWith('.package')) {
+                            const parts = entry.fileName.split('/');
+                            fileNames.push(parts[parts.length - 1]);
+                        }
+                        zipfile.readEntry();
+                    });
+                    zipfile.on('end', () => resolve());
+                    zipfile.on('error', reject);
+                });
+            });
+        } else if (ext === 'rar') {
+            const buf = await readFile(filePath);
+            const arrayBuffer = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+            const extractor = await createExtractorFromData({ data: arrayBuffer });
+            for (const file of extractor.getFileList().fileHeaders) {
+                if (!file.flags.directory && file.name.endsWith('.package')) {
+                    const parts = file.name.split(/[\\/]/);
+                    fileNames.push(parts[parts.length - 1]);
+                }
+            }
+        } else if (ext === 'package') {
+            const parts = filePath.split(/[\\/]/);
+            fileNames.push(parts[parts.length - 1]);
+        }
+
+        return fileNames;
     }
 
     static async scanRar(filePath: string): Promise<ScanAnalysis> {

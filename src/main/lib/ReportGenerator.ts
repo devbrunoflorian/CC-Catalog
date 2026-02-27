@@ -25,7 +25,11 @@ export class ReportGenerator {
         let targetSetIds: string[] | null = null;
         let targetItemNames: Set<string> | null = null;
 
-        if (options.filterFileNames && options.filterFileNames.length > 0) {
+        if (options.filterFileNames !== undefined) {
+            if (options.filterFileNames.length === 0) {
+                return 'Scan Report\n\n_No items found for this scan._';
+            }
+
             // Find items matching the filenames
             // SQLite limit for IN clause is usually high
             const foundItems = db.select().from(ccItems).where(inArray(ccItems.fileName, options.filterFileNames)).all();
@@ -167,7 +171,11 @@ export class ReportGenerator {
         let targetSetIds: string[] | null = null;
         let targetItemNames: Set<string> | null = null;
 
-        if (options.filterFileNames && options.filterFileNames.length > 0) {
+        if (options.filterFileNames !== undefined) {
+            if (options.filterFileNames.length === 0) {
+                return '<p><em>No items found for this scan.</em></p>';
+            }
+
             const foundItems = db.select().from(ccItems).where(inArray(ccItems.fileName, options.filterFileNames)).all();
 
             if (foundItems.length === 0) {

@@ -348,6 +348,57 @@ ipcMain.handle('delete-creator', async (_, { id, deleteSets }) => {
 
 
 
+ipcMain.handle('scan-building', async () => {
+    if (!dbInitialized) throw new Error('Database not initialized');
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+        properties: ['openFile', 'multiSelections'],
+        filters: [
+            { name: 'All CC Files', extensions: ['package', 'zip', 'rar'] },
+            { name: 'Package Files', extensions: ['package'] },
+            { name: 'ZIP Archives', extensions: ['zip'] },
+            { name: 'RAR Archives', extensions: ['rar'] }
+        ],
+    });
+
+    if (canceled || filePaths.length === 0) return null;
+
+    const filePath = filePaths[0];
+    const ext = extname(filePath).toLowerCase();
+
+    try {
+        // For buildings, collect ALL filenames without any duplicate filtering
+        const fileNames = await ZipScanner.listAllFiles(filePath);
+        return {
+            filePath,
+            fileNames,
+            fileName: basename(filePath, ext)
+        };
+    } catch (error) {
+        console.error('Building scan failed:', error);
+        throw error;
+    }
+});
+
+ipcMain.handle('confirm-building-scan', async (_, { filePath, fileNames }: { filePath: string, fileNames: string[] }) => {
+    if (!dbInitialized) throw new Error('Database not initialized');
+    const db = getDb();
+
+    const fileName = filePath ? basename(filePath, extname(filePath)) : 'Unknown Building';
+
+    db.insert(scanHistory).values({
+        id: randomUUID(),
+        fileName,
+        itemsFound: fileNames.length,
+        creatorsFound: 0,
+        status: 'success',
+        scannedFiles: JSON.stringify(fileNames),
+        category: 'buildings'
+    }).run();
+
+    saveDatabase();
+    return { success: true, itemsFound: fileNames.length };
+});
+
 ipcMain.handle('scan-zip', async () => {
     if (!dbInitialized) throw new Error('Database not initialized');
     const { canceled, filePaths } = await dialog.showOpenDialog({
