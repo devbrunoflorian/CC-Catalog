@@ -13,7 +13,7 @@ O CC Catalog é uma ferramenta especializada para criadores e curadores de conte
 
 Este projeto nasceu inteiramente do amor. Eu construí o CC Catalog especificamente para ajudar minha namorada incrível a gerenciar seus Custom Contents com facilidade. Ver o quanto ela gastava de tempo organizando arquivos e procurando os créditos de criadores me inspirou a codificar uma solução apenas para ela.
 
-Tudo aqui — cada funcionalidade, cada clique, cada linha de código — foi feito para tornar a vida dela um pouco mais fácil e o jogo dela um pouco mais divertido. Eu te amo muito! ❤️
+Tudo aqui, cada funcionalidade, cada clique, cada linha de código, foi feito para tornar a vida dela um pouco mais fácil e o jogo dela um pouco mais divertido. Eu te amo muito! ❤️
 
 Se esta ferramenta acabar ajudando mais alguém na comunidade do The Sims a organizar sua biblioteca, isso é maravilhoso! Aproveitem. Mas o seu verdadeiro propósito e o maior valor disso sempre será o sorriso de quem eu amo.
 
