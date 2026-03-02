@@ -23,9 +23,10 @@ interface ScanFolder {
 interface HistoryViewProps {
     onReport?: (logs: ScanLog[]) => void;
     onBuildingSaved?: () => void;
+    activeDb?: 'custom' | 'official';
 }
 
-const HistoryView: React.FC<HistoryViewProps> = ({ onReport, onBuildingSaved }) => {
+const HistoryView: React.FC<HistoryViewProps> = ({ onReport, onBuildingSaved, activeDb = 'custom' }) => {
     const [buildingsData, setBuildingsData] = useState<{ history: ScanLog[], folders: ScanFolder[] }>({ history: [], folders: [] });
     const [uploadsData, setUploadsData] = useState<{ history: ScanLog[], folders: ScanFolder[] }>({ history: [], folders: [] });
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
@@ -177,18 +178,20 @@ const HistoryView: React.FC<HistoryViewProps> = ({ onReport, onBuildingSaved }) 
                     }`}
             >
                 {/* Drag Handle */}
-                <div
-                    draggable
-                    onDragStart={(e) => {
-                        e.stopPropagation();
-                        handleDragStart(e, log.id);
-                    }}
-                    className="shrink-0 mr-2 p-1 rounded-md text-slate-700 hover:text-slate-400 transition-colors cursor-grab active:cursor-grabbing hover:bg-white/5"
-                    title="Drag to move"
-                    onClick={(e) => e.stopPropagation()}
-                >
-                    <GripVertical size={14} />
-                </div>
+                {activeDb === 'custom' && (
+                    <div
+                        draggable
+                        onDragStart={(e) => {
+                            e.stopPropagation();
+                            handleDragStart(e, log.id);
+                        }}
+                        className="shrink-0 mr-2 p-1 rounded-md text-slate-700 hover:text-slate-400 transition-colors cursor-grab active:cursor-grabbing hover:bg-white/5"
+                        title="Drag to move"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <GripVertical size={14} />
+                    </div>
+                )}
                 {/* Selection indicator for buildings */}
                 {isBuilding && (
                     <div className={`shrink-0 mr-3 transition-colors ${isSelected ? 'text-brand-primary' : 'text-slate-600 group-hover:text-slate-400'}`}>
@@ -214,13 +217,15 @@ const HistoryView: React.FC<HistoryViewProps> = ({ onReport, onBuildingSaved }) 
                 </div>
 
                 {/* Delete button */}
-                <button
-                    onClick={(e) => handleDelete(log.id, e)}
-                    className="p-1.5 bg-transparent hover:bg-red-500/10 text-slate-700 hover:text-red-400 rounded-lg transition-all opacity-0 group-hover:opacity-100 shrink-0 ml-2"
-                    title="Delete"
-                >
-                    <Trash2 size={14} />
-                </button>
+                {activeDb === 'custom' && (
+                    <button
+                        onClick={(e) => handleDelete(log.id, e)}
+                        className="p-1.5 bg-transparent hover:bg-red-500/10 text-slate-700 hover:text-red-400 rounded-lg transition-all opacity-0 group-hover:opacity-100 shrink-0 ml-2"
+                        title="Delete"
+                    >
+                        <Trash2 size={14} />
+                    </button>
+                )}
             </div>
         );
     };
@@ -233,11 +238,11 @@ const HistoryView: React.FC<HistoryViewProps> = ({ onReport, onBuildingSaved }) 
             <div
                 key={folder.id}
                 className="mb-3 rounded-2xl overflow-hidden border border-white/5 bg-white/[0.01] hover:bg-white/[0.03] transition-all"
-                onDragOver={handleDragOver}
-                onDrop={(e) => {
+                onDragOver={activeDb === 'custom' ? handleDragOver : undefined}
+                onDrop={activeDb === 'custom' ? (e) => {
                     e.stopPropagation();
                     handleDrop(e, folder.id, folder.category);
-                }}
+                } : undefined}
             >
                 <div
                     onClick={() => toggleFolder(folder.id)}
@@ -252,13 +257,15 @@ const HistoryView: React.FC<HistoryViewProps> = ({ onReport, onBuildingSaved }) 
                     </div>
 
                     <div className="flex items-center gap-1.5">
-                        <button
-                            onClick={(e) => handleDeleteFolder(folder.id, e)}
-                            className="p-1 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-                            title="Delete Folder"
-                        >
-                            <Trash2 size={14} />
-                        </button>
+                        {activeDb === 'custom' && (
+                            <button
+                                onClick={(e) => handleDeleteFolder(folder.id, e)}
+                                className="p-1 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                                title="Delete Folder"
+                            >
+                                <Trash2 size={14} />
+                            </button>
+                        )}
                         <div className="text-slate-600">
                             {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                         </div>
@@ -287,8 +294,8 @@ const HistoryView: React.FC<HistoryViewProps> = ({ onReport, onBuildingSaved }) 
         return (
             <div
                 className={`flex-grow flex flex-col min-w-0 glass-mica rounded-[2rem] border border-white/5 overflow-hidden transition-all relative ${isBuildings ? 'bg-brand-primary/[0.02]' : 'bg-white/[0.01]'}`}
-                onDragOver={handleDragOver}
-                onDrop={(e) => handleDrop(e, null, category)}
+                onDragOver={activeDb === 'custom' ? handleDragOver : undefined}
+                onDrop={activeDb === 'custom' ? (e) => handleDrop(e, null, category) : undefined}
             >
                 {/* Column Header */}
                 <div className="p-6 border-b border-white/5 flex items-center justify-between sticky top-0 bg-transparent backdrop-blur-md z-10">
@@ -305,8 +312,8 @@ const HistoryView: React.FC<HistoryViewProps> = ({ onReport, onBuildingSaved }) 
                         {isBuildings && (
                             <button
                                 onClick={handleScanBuilding}
-                                disabled={scanningBuilding}
-                                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all border ${scanningBuilding
+                                disabled={scanningBuilding || activeDb === 'official'}
+                                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all border ${activeDb === 'official' ? 'bg-slate-700 border-slate-600 text-slate-500 cursor-not-allowed opacity-50' : scanningBuilding
                                     ? 'bg-slate-700 border-slate-600 text-slate-500 cursor-not-allowed'
                                     : 'bg-brand-primary/10 border-brand-primary/30 text-brand-secondary hover:bg-brand-primary hover:text-white hover-glow'
                                     }`}
@@ -316,13 +323,15 @@ const HistoryView: React.FC<HistoryViewProps> = ({ onReport, onBuildingSaved }) 
                                 {scanningBuilding ? 'Scanning...' : 'Scan Building'}
                             </button>
                         )}
-                        <button
-                            onClick={() => setShowNewFolderInput({ show: true, category })}
-                            className="p-2 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-brand-primary rounded-xl transition-all border border-white/5 hover-glow"
-                            title="New Folder"
-                        >
-                            <FolderPlus size={18} />
-                        </button>
+                        {activeDb === 'custom' && (
+                            <button
+                                onClick={() => setShowNewFolderInput({ show: true, category })}
+                                className="p-2 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-brand-primary rounded-xl transition-all border border-white/5 hover-glow"
+                                title="New Folder"
+                            >
+                                <FolderPlus size={18} />
+                            </button>
+                        )}
                     </div>
                 </div>
 

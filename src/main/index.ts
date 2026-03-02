@@ -20,7 +20,7 @@ import { autoUpdater } from 'electron-updater';
 import { join, dirname, basename, extname } from 'path';
 import { existsSync } from 'fs';
 import { fileURLToPath } from 'url';
-import { initDatabase, getDb, saveDatabase } from './db/database.js';
+import { initDatabase, getDb, saveDatabase, setActiveDb, getActiveDbType } from './db/database.js';
 import { ZipScanner } from './lib/ZipScanner.js';
 import { ReportGenerator } from './lib/ReportGenerator.js';
 import { Logger } from './lib/Logger.js';
@@ -103,6 +103,13 @@ ipcMain.handle('quit-and-install', () => {
 
 ipcMain.handle('get-app-version', () => app.getVersion());
 
+ipcMain.handle('set-active-db', (_, type: 'custom' | 'official') => {
+    setActiveDb(type);
+    return { success: true };
+});
+
+ipcMain.handle('get-active-db', () => getActiveDbType());
+
 ipcMain.handle('get-history', async () => {
     if (!dbInitialized) throw new Error('Database not initialized');
     const db = getDb();
@@ -177,6 +184,7 @@ ipcMain.handle('get-creator-details', async (_, id) => {
 
 ipcMain.handle('create-set', async (_, { creatorId, name, parentId, patreonUrl, websiteUrl }: any) => {
     if (!dbInitialized) throw new Error('Database not initialized');
+    if (getActiveDbType() === 'official') throw new Error('Cannot modify the Official Database. Please switch to your Custom Database first.');
     const db = getDb();
     const newId = randomUUID();
 
@@ -196,6 +204,7 @@ ipcMain.handle('create-set', async (_, { creatorId, name, parentId, patreonUrl, 
 
 ipcMain.handle('delete-set', async (_, { id, deleteItems }) => {
     if (!dbInitialized) throw new Error('Database not initialized');
+    if (getActiveDbType() === 'official') throw new Error('Cannot modify the Official Database. Please switch to your Custom Database first.');
     const db = getDb();
 
     // Check if empty
@@ -217,6 +226,7 @@ ipcMain.handle('delete-set', async (_, { id, deleteItems }) => {
 
 ipcMain.handle('move-items', async (_, { itemIds, targetSetId }) => {
     if (!dbInitialized) throw new Error('Database not initialized');
+    if (getActiveDbType() === 'official') throw new Error('Cannot modify the Official Database. Please switch to your Custom Database first.');
     const db = getDb();
 
     // Update all items
@@ -236,6 +246,7 @@ ipcMain.handle('move-items', async (_, { itemIds, targetSetId }) => {
 
 ipcMain.handle('update-set-order', async (_, updates: { id: string; sortOrder: number }[]) => {
     if (!dbInitialized) throw new Error('Database not initialized');
+    if (getActiveDbType() === 'official') throw new Error('Cannot modify the Official Database. Please switch to your Custom Database first.');
     const db = getDb();
 
     for (const update of updates) {
@@ -253,6 +264,7 @@ ipcMain.handle('update-set-order', async (_, updates: { id: string; sortOrder: n
 
 ipcMain.handle('update-set-link', async (_, { id, name, patreon_url, website_url, extra_links }: any) => {
     if (!dbInitialized) throw new Error('Database not initialized');
+    if (getActiveDbType() === 'official') throw new Error('Cannot modify the Official Database. Please switch to your Custom Database first.');
     const db = getDb();
 
     const updateData: any = {
@@ -275,6 +287,7 @@ ipcMain.handle('update-set-link', async (_, { id, name, patreon_url, website_url
 
 ipcMain.handle('update-creator', async (_, { id, name, patreon_url, website_url }: any) => {
     if (!dbInitialized) throw new Error('Database not initialized');
+    if (getActiveDbType() === 'official') throw new Error('Cannot modify the Official Database. Please switch to your Custom Database first.');
     const db = getDb();
 
     const updateData: any = {
@@ -296,6 +309,7 @@ ipcMain.handle('update-creator', async (_, { id, name, patreon_url, website_url 
 
 ipcMain.handle('create-creator', async (_, { name, patreon_url, website_url }: any) => {
     if (!dbInitialized) throw new Error('Database not initialized');
+    if (getActiveDbType() === 'official') throw new Error('Cannot modify the Official Database. Please switch to your Custom Database first.');
     const db = getDb();
 
     // Check if exists
@@ -319,6 +333,7 @@ ipcMain.handle('create-creator', async (_, { name, patreon_url, website_url }: a
 
 ipcMain.handle('delete-creator', async (_, { id, deleteSets }) => {
     if (!dbInitialized) throw new Error('Database not initialized');
+    if (getActiveDbType() === 'official') throw new Error('Cannot modify the Official Database. Please switch to your Custom Database first.');
     const db = getDb();
 
     // Check if empty
@@ -381,6 +396,7 @@ ipcMain.handle('scan-building', async () => {
 
 ipcMain.handle('confirm-building-scan', async (_, { filePath, fileNames }: { filePath: string, fileNames: string[] }) => {
     if (!dbInitialized) throw new Error('Database not initialized');
+    if (getActiveDbType() === 'official') throw new Error('Cannot modify the Official Database. Please switch to your Custom Database first.');
     const db = getDb();
 
     const fileName = filePath ? basename(filePath, extname(filePath)) : 'Unknown Building';
@@ -436,6 +452,7 @@ ipcMain.handle('scan-zip', async () => {
 
 ipcMain.handle('confirm-scan', async (_, { results, matches, filePath, category }: any) => {
     if (!dbInitialized) throw new Error('Database not initialized');
+    if (getActiveDbType() === 'official') throw new Error('Cannot modify the Official Database. Please switch to your Custom Database first.');
 
     // Process results
     await ZipScanner.processScanResults(results, matches);
@@ -518,6 +535,7 @@ ipcMain.handle('export-csv', async () => {
 
 ipcMain.handle('import-csv', async () => {
     if (!dbInitialized) throw new Error('Database not initialized');
+    if (getActiveDbType() === 'official') throw new Error('Cannot modify the Official Database. Please switch to your Custom Database first.');
     const { canceled, filePaths } = await dialog.showOpenDialog({
         properties: ['openFile'],
         filters: [{ name: 'CSV Files', extensions: ['csv'] }]

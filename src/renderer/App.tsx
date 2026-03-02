@@ -98,6 +98,24 @@ const DashboardContent: React.FC = () => {
     const [buildingsHistory, setBuildingsHistory] = useState<ScanLog[]>([]);
     const [healthMetrics, setHealthMetrics] = useState<HealthMetrics | null>(null);
 
+    const [activeDb, setActiveDb] = useState<'custom' | 'official'>('custom');
+
+    const loadActiveDb = async () => {
+        const data = await (window as any).electron.invoke('get-active-db');
+        setActiveDb(data);
+    };
+
+    useEffect(() => {
+        loadActiveDb();
+    }, []);
+
+    const handleSwitchDb = async (type: 'custom' | 'official') => {
+        if (type === activeDb) return;
+        await (window as any).electron.invoke('set-active-db', type);
+        setActiveDb(type);
+        setHistoryUpdateTrigger(prev => prev + 1);
+    };
+
     const loadCredits = async () => {
         const data = await (window as any).electron.invoke('get-credits');
         setCredits(data);
@@ -387,13 +405,29 @@ const DashboardContent: React.FC = () => {
             <main className="flex-grow flex flex-col overflow-hidden">
                 {/* Header */}
                 <header className="h-20 border-b border-border-subtle px-8 flex items-center justify-between glass-effect shrink-0">
-                    <div className="flex items-center gap-4 bg-white/5 px-4 py-2 rounded-xl border border-white/5 w-96 transition-all focus-within:shadow-[0_0_20px_rgba(var(--brand-primary),0.2)] focus-within:border-brand-primary/50">
+                    <div className="flex items-center gap-4 bg-white/5 px-4 py-2 rounded-xl border border-white/5 w-64 transition-all focus-within:shadow-[0_0_20px_rgba(var(--brand-primary),0.2)] focus-within:border-brand-primary/50">
                         <Search size={18} className="text-slate-500" />
                         <input
                             type="text"
-                            placeholder="Search CC or Creators..."
+                            placeholder="Search CC..."
                             className="bg-transparent border-none outline-none text-sm w-full text-slate-200 placeholder-slate-500"
                         />
+                    </div>
+
+                    {/* Database Switcher */}
+                    <div className="flex bg-white/5 p-1 rounded-xl border border-white/5 h-10 ml-4 mr-auto">
+                        <button
+                            onClick={() => handleSwitchDb('custom')}
+                            className={`px-4 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${activeDb === 'custom' ? 'bg-brand-primary text-white shadow-lg' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}`}
+                        >
+                            Custom <span className="opacity-50 font-normal hidden xl:inline">Database</span>
+                        </button>
+                        <button
+                            onClick={() => handleSwitchDb('official')}
+                            className={`px-4 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${activeDb === 'official' ? 'bg-slate-700 text-white shadow-lg border border-slate-600' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}`}
+                        >
+                            Official <span className="opacity-50 font-normal hidden xl:inline">Database</span>
+                        </button>
                     </div>
 
                     <div className="flex gap-4 items-center">
@@ -430,19 +464,19 @@ const DashboardContent: React.FC = () => {
                                     alert('No buildings scanned yet. Go to History → Buildings tab and scan a building ZIP first.');
                                 }
                             }}
-                            className="flex items-center gap-2 px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-semibold transition-all hover-glow"
+                            disabled={activeDb === 'official'}
+                            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${activeDb === 'official' ? 'bg-white/5 text-slate-500 border border-transparent cursor-not-allowed opacity-50' : 'bg-white/5 hover:bg-white/10 border border-white/10 hover-glow'}`}
                         >
                             <Clipboard size={18} />
                             Generate Report
                         </button>
                         <button
                             onClick={handleScan}
-                            disabled={scanning}
-                            className={`px-6 py-2.5 rounded-xl text-white text-sm font-bold transition-all flex items-center gap-2 shadow-lg shadow-brand-primary/20 ${scanning ? 'bg-slate-700 cursor-not-allowed' : 'bg-brand-primary hover:bg-brand-secondary active:scale-95 hover:shadow-[0_0_25px_rgba(var(--brand-primary),0.6)]'
-                                }`}
+                            disabled={scanning || activeDb === 'official'}
+                            className={`px-6 py-2.5 rounded-xl text-white text-sm font-bold transition-all flex items-center gap-2 shadow-lg ${activeDb === 'official' ? 'bg-slate-700 cursor-not-allowed opacity-50 text-slate-400 shadow-none' : scanning ? 'bg-slate-700 cursor-not-allowed text-slate-400' : 'bg-brand-primary hover:bg-brand-secondary active:scale-95 hover:shadow-[0_0_25px_rgba(var(--brand-primary),0.6)] shadow-brand-primary/20'}`}
                         >
                             <Upload size={18} />
-                            {scanning ? 'Scanning...' : 'Scan Files'}
+                            {activeDb === 'official' ? 'Read Only' : scanning ? 'Scanning...' : 'Scan Files'}
                         </button>
                     </div>
                 </header>
@@ -678,7 +712,7 @@ const DashboardContent: React.FC = () => {
                 {/* Creators View */}
                 {currentView === 'creators' && (
                     <div className="p-8 overflow-hidden h-full">
-                        <CreatorsView refreshTrigger={historyUpdateTrigger} />
+                        <CreatorsView refreshTrigger={historyUpdateTrigger} activeDb={activeDb} />
                     </div>
                 )}
 
@@ -688,6 +722,7 @@ const DashboardContent: React.FC = () => {
                         <HistoryView
                             key={historyUpdateTrigger}
                             onBuildingSaved={() => setHistoryUpdateTrigger(prev => prev + 1)}
+                            activeDb={activeDb}
                             onReport={(logs) => {
                                 // Merge scannedFiles from all selected buildings (deduplicated)
                                 const allItems = new Set<string>();

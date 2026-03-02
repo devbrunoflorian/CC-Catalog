@@ -42,6 +42,7 @@ interface CreatorSummary {
 
 interface CreatorsViewProps {
     refreshTrigger?: number;
+    activeDb?: 'custom' | 'official';
 }
 
 // Helper function for array reordering
@@ -65,7 +66,7 @@ const countTotalItems = (set: any, allSets: any[]): number => {
     return count;
 };
 
-const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger }) => {
+const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger, activeDb = 'custom' }) => {
     const [creatorsList, setCreatorsList] = useState<CreatorSummary[]>([]);
     const [selectedCreatorId, setSelectedCreatorId] = useState<string | null>(null);
     const [creatorDetails, setCreatorDetails] = useState<CreatorDetails | null>(null);
@@ -245,7 +246,7 @@ const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger }) => {
                     {/* Set Header */}
                     <div className="py-3 px-4 flex items-center justify-between group">
                         <div className="flex items-center gap-4 flex-grow cursor-pointer" onClick={() => toggleSetExpansion(set.id)}>
-                            {editingSetId !== set.id && (
+                            {editingSetId !== set.id && activeDb === 'custom' && (
                                 <div
                                     draggable={true}
                                     onDragStart={(e) => {
@@ -345,7 +346,7 @@ const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger }) => {
                                     <button onClick={() => handleUpdateSet(set.id)} className="p-2 bg-green-500/10 text-green-400 rounded-lg hover:bg-green-500/20 border border-green-500/20 transition-colors"><Check size={16} /></button>
                                     <button onClick={() => setEditingSetId(null)} className="p-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20 border border-red-500/20 transition-colors"><X size={16} /></button>
                                 </div>
-                            ) : (
+                            ) : activeDb === 'custom' ? (
                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0 bg-black/60 backdrop-blur-sm p-1 rounded-lg border border-white/10 shadow-xl hover-glow">
                                     <button
                                         onClick={(e) => {
@@ -388,7 +389,7 @@ const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger }) => {
                                         <Trash2 size={15} />
                                     </button>
                                 </div>
-                            )}
+                            ) : null}
                         </div>
                     </div>
 
@@ -455,10 +456,10 @@ const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger }) => {
                                             : 'border-transparent text-slate-400 hover:bg-white/5 hover:text-slate-200'
                                             }`}
                                         onClick={(e) => toggleItemSelection(item.id, e.ctrlKey || e.metaKey || e.shiftKey, e.shiftKey, allVisibleItems)}
-                                        draggable
+                                        draggable={activeDb === 'custom'}
                                         onDragStart={(e) => handleDragStart(e, item.id)}
                                     >
-                                        <GripVertical size={14} className="text-slate-600 opacity-0 group-hover/item:opacity-100 transition-opacity cursor-grab active:cursor-grabbing" />
+                                        <GripVertical size={14} className={`text-slate-600 opacity-0 group-hover/item:opacity-100 transition-opacity ${activeDb === 'custom' ? 'cursor-grab active:cursor-grabbing' : 'invisible'}`} />
                                         <div
                                             className={`w-4 h-4 rounded flex items-center justify-center border transition-all cursor-pointer hover:border-brand-primary/60 ${selectedItems.has(item.id) ? 'bg-brand-primary border-brand-primary' : 'border-slate-600 bg-black/20'}`}
                                             onClick={(e) => {
@@ -1099,18 +1100,22 @@ const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger }) => {
                                                 />
                                             </div>
                                             <div className="col-span-2 flex justify-between items-center mt-2">
-                                                <button
-                                                    onClick={handleDeleteCreator}
-                                                    className="text-red-400 text-xs hover:text-red-300 hover:bg-red-500/10 px-3 py-2 rounded-lg transition-colors flex items-center gap-2"
-                                                >
-                                                    <Trash2 size={14} /> Delete Creator
-                                                </button>
-                                                <button
-                                                    onClick={handleUpdateCreator}
-                                                    className="bg-brand-primary text-white text-xs font-bold px-6 py-2.5 rounded-lg hover:bg-brand-secondary transition-all shadow-lg shadow-brand-primary/20 hover:shadow-brand-primary/40 flex items-center gap-2"
-                                                >
-                                                    <Save size={14} /> Save Changes
-                                                </button>
+                                                {activeDb === 'custom' ? (
+                                                    <button
+                                                        onClick={handleDeleteCreator}
+                                                        className="text-red-400 text-xs hover:text-red-300 hover:bg-red-500/10 px-3 py-2 rounded-lg transition-colors flex items-center gap-2"
+                                                    >
+                                                        <Trash2 size={14} /> Delete Creator
+                                                    </button>
+                                                ) : <div />}
+                                                {activeDb === 'custom' && (
+                                                    <button
+                                                        onClick={handleUpdateCreator}
+                                                        className="bg-brand-primary text-white text-xs font-bold px-6 py-2.5 rounded-lg hover:bg-brand-secondary transition-all shadow-lg shadow-brand-primary/20 hover:shadow-brand-primary/40 flex items-center gap-2"
+                                                    >
+                                                        <Save size={14} /> Save Changes
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
                                     ) : (
@@ -1162,12 +1167,14 @@ const CreatorsView: React.FC<CreatorsViewProps> = ({ refreshTrigger }) => {
                                             {itemSort === 'az' ? <><SortAsc size={12} /> Items A-Z</> : <><SortDesc size={12} /> Items Z-A</>}
                                         </button>
                                     </div>
-                                    <button
-                                        onClick={() => setShowNewSetInput(true)}
-                                        className="flex items-center gap-2 bg-brand-primary/10 hover:bg-brand-primary/20 border border-brand-primary/20 hover:border-brand-primary/40 px-4 py-2 rounded-lg text-xs font-bold text-brand-secondary transition-all shadow-lg shadow-brand-primary/5 hover-glow"
-                                    >
-                                        <FolderPlus size={16} /> New Set
-                                    </button>
+                                    {activeDb === 'custom' && (
+                                        <button
+                                            onClick={() => setShowNewSetInput(true)}
+                                            className="flex items-center gap-2 bg-brand-primary/10 hover:bg-brand-primary/20 border border-brand-primary/20 hover:border-brand-primary/40 px-4 py-2 rounded-lg text-xs font-bold text-brand-secondary transition-all shadow-lg shadow-brand-primary/5 hover-glow ml-2"
+                                        >
+                                            <FolderPlus size={16} /> New Set
+                                        </button>
+                                    )}
                                 </div>
                             </div>
 

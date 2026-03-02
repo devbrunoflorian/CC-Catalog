@@ -11,56 +11,18 @@ import { sql } from 'drizzle-orm';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const dbPath = join(app.getPath('userData'), 'sims-cc.db');
+const customDbPath = join(app.getPath('userData'), 'sims-cc.db');
 
-let sqlJsDb: SqlJsDatabase;
-let db: ReturnType<typeof drizzle>;
+let sqlJsDbCustom: SqlJsDatabase;
+let sqlJsDbOfficial: SqlJsDatabase | null = null;
+let dbCustom: ReturnType<typeof drizzle>;
+let dbOfficial: ReturnType<typeof drizzle> | null = null;
 
-/**
- * Initialize the database with sql.js and Drizzle ORM
- */
-export async function initDatabase() {
-  console.log('[DB] __dirname:', __dirname);
-  console.log('[DB] cwd:', process.cwd());
+let activeDbType: 'custom' | 'official' = 'custom';
 
-  // Load WASM binary from filesystem (works with ESM __dirname polyfill)
-  const wasmPath = join(__dirname, '../../node_modules/sql.js/dist/sql-wasm.wasm');
-  console.log('[DB] Loading WASM from:', wasmPath);
-
-  const wasmBinary = new Uint8Array(readFileSync(wasmPath));
-  const SQL = await initSqlJs({ wasmBinary: wasmBinary as any });
-
-  // Load existing database or create new one
-  if (existsSync(dbPath)) {
-    console.log('Loading existing database from:', dbPath);
-    const buffer = readFileSync(dbPath);
-    sqlJsDb = new SQL.Database(buffer);
-  } else {
-    // Check for bundled database in resources
-    // In production: resources/sims-cc.db
-    // In dev: public/sims-cc.db or similar
-    const bundledDbPath = app.isPackaged
-      ? join(process.resourcesPath, 'sims-cc.db')
-      : join(__dirname, '../../public/sims-cc.db'); // Adjust dev path as needed
-
-    console.log('Checking for bundled database at:', bundledDbPath);
-
-    if (existsSync(bundledDbPath)) {
-      console.log('Found bundled database, copying to userData...');
-      const buffer = readFileSync(bundledDbPath);
-      writeFileSync(dbPath, buffer);
-      sqlJsDb = new SQL.Database(buffer);
-    } else {
-      console.log('No bundled database found, creating new empty database at:', dbPath);
-      sqlJsDb = new SQL.Database();
-    }
-  }
-
-  // Create Drizzle instance
-  db = drizzle(sqlJsDb);
-
+function initSchema(database: SqlJsDatabase) {
   // Create tables if they don't exist
-  sqlJsDb.run(`
+  database.run(`
         CREATE TABLE IF NOT EXISTS categories (
             id TEXT PRIMARY KEY,
             name TEXT UNIQUE NOT NULL,
@@ -116,12 +78,12 @@ export async function initDatabase() {
 
   // Migration: Add new columns to cc_sets if they don't exist
   try {
-    sqlJsDb.run(`ALTER TABLE cc_sets ADD COLUMN patreon_url TEXT;`);
+    database.run(`ALTER TABLE cc_sets ADD COLUMN patreon_url TEXT;`);
   } catch (e) {
     // Column likely exists, ignore
   }
   try {
-    sqlJsDb.run(`ALTER TABLE cc_sets ADD COLUMN website_url TEXT;`);
+    database.run(`ALTER TABLE cc_sets ADD COLUMN website_url TEXT;`);
   } catch (e) {
     // Column likely exists, ignore
   }
@@ -130,49 +92,128 @@ export async function initDatabase() {
   const defaultCategories = ['Furniture', 'Build Mode', 'CAS', 'Script Mods', 'Landscaping'];
 
   for (const categoryName of defaultCategories) {
-    sqlJsDb.run(
+    database.run(
       'INSERT OR IGNORE INTO categories (id, name) VALUES (?, ?)',
       [randomUUID(), categoryName]
     );
   }
+}
+
+/**
+ * Initialize the database with sql.js and Drizzle ORM
+ */
+export async function initDatabase() {
+  console.log('[DB] __dirname:', __dirname);
+  console.log('[DB] cwd:', process.cwd());
+
+  // Load WASM binary from filesystem (works with ESM __dirname polyfill)
+  const wasmPath = join(__dirname, '../../node_modules/sql.js/dist/sql-wasm.wasm');
+  console.log('[DB] Loading WASM from:', wasmPath);
+
+  const wasmBinary = new Uint8Array(readFileSync(wasmPath));
+  const SQL = await initSqlJs({ wasmBinary: wasmBinary as any });
+
+  // 1. Initialize Custom Database
+  if (existsSync(customDbPath)) {
+    console.log('Loading existing custom database from:', customDbPath);
+    const buffer = readFileSync(customDbPath);
+    sqlJsDbCustom = new SQL.Database(buffer);
+  } else {
+    // Check for bundled database in resources
+    const bundledDbPath = app.isPackaged
+      ? join(process.resourcesPath, 'sims-cc.db')
+      : join(__dirname, '../../public/sims-cc.db');
+
+    if (existsSync(bundledDbPath)) {
+      console.log('Found bundled database, copying to userData for custom db...');
+      const buffer = readFileSync(bundledDbPath);
+      writeFileSync(customDbPath, buffer);
+      sqlJsDbCustom = new SQL.Database(buffer);
+    } else {
+      console.log('No bundled database found, creating new empty custom database at:', customDbPath);
+      sqlJsDbCustom = new SQL.Database();
+    }
+  }
+
+  dbCustom = drizzle(sqlJsDbCustom);
+  initSchema(sqlJsDbCustom);
 
   // Save to disk after initialization
   saveDatabase();
 
-  console.log('Database initialized successfully at:', dbPath);
+  console.log('Custom Database initialized successfully at:', customDbPath);
+
+  // 2. Initialize Official Database
+  const officialDbPath = app.isPackaged
+    ? join(process.resourcesPath, 'sims-cc.db')
+    : join(__dirname, '../../public/sims-cc.db');
+
+  if (existsSync(officialDbPath)) {
+    console.log('Loading official database from:', officialDbPath);
+    const buffer = readFileSync(officialDbPath);
+    sqlJsDbOfficial = new SQL.Database(buffer);
+    dbOfficial = drizzle(sqlJsDbOfficial);
+    initSchema(sqlJsDbOfficial);
+  } else {
+    console.warn('Official database not found at:', officialDbPath);
+  }
 }
 
 /**
- * Save the in-memory database to disk
+ * Save the in-memory custom database to disk
  */
 export function saveDatabase(): void {
-  if (!sqlJsDb) {
-    console.warn('Database not initialized, cannot save');
+  // We only ever save the custom DB. The official DB is read-only.
+  if (!sqlJsDbCustom) {
+    console.warn('Custom Database not initialized, cannot save');
     return;
   }
 
-  const data = sqlJsDb.export();
-  writeFileSync(dbPath, Buffer.from(data));
+  const data = sqlJsDbCustom.export();
+  writeFileSync(customDbPath, Buffer.from(data));
+}
+
+export function setActiveDb(type: 'custom' | 'official') {
+  activeDbType = type;
+  console.log('[DB] Active database switched to:', type);
+}
+
+export function getActiveDbType() {
+  return activeDbType;
 }
 
 /**
- * Get the Drizzle database instance
+ * Get the active Drizzle database instance
  */
 export function getDb() {
-  if (!db) {
-    throw new Error('Database not initialized. Call initDatabase() first.');
+  if (activeDbType === 'official') {
+    if (!dbOfficial) {
+      throw new Error('Official Database not initialized or not found. Cannot perform query.');
+    }
+    return dbOfficial;
   }
-  return db;
+
+  if (!dbCustom) {
+    throw new Error('Custom Database not initialized. Call initDatabase() first.');
+  }
+  return dbCustom;
 }
 
 /**
- * Get the raw sql.js database instance (for direct SQL queries if needed)
+ * Get the active raw sql.js database instance (for direct SQL queries if needed)
  */
 export function getRawDb() {
-  if (!sqlJsDb) {
-    throw new Error('Database not initialized. Call initDatabase() first.');
+  if (activeDbType === 'official') {
+    if (!sqlJsDbOfficial) {
+      throw new Error('Official Database not initialized or not found. Cannot perform query.');
+    }
+    return sqlJsDbOfficial;
   }
-  return sqlJsDb;
+
+  if (!sqlJsDbCustom) {
+    throw new Error('Custom Database not initialized. Call initDatabase() first.');
+  }
+  return sqlJsDbCustom;
 }
 
 // Export for backward compatibility
@@ -180,4 +221,6 @@ export default {
   getDb,
   getRawDb,
   saveDatabase,
+  setActiveDb,
+  getActiveDbType
 };
