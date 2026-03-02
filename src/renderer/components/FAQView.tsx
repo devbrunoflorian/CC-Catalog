@@ -61,6 +61,16 @@ const FAQView: React.FC = () => {
                             <p>
                                 It scans your zip files, identifies creators and sets, and allows you to generate beautifully formatted reports for platforms like Patreon, WhatsApp, or personal documentation.
                             </p>
+                            <div className="mt-4 p-4 bg-red-500/10 border border-red-500/20 rounded-xl relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 blur-2xl -mr-16 -mt-16 pointer-events-none" />
+                                <h4 className="flex items-center gap-2 text-red-400 font-bold mb-2">
+                                    <Heart size={16} className="fill-red-400/50" />
+                                    A Special Dedication
+                                </h4>
+                                <p className="text-sm text-slate-300 italic">
+                                    "This project was born entirely out of love. I built CC Catalog specifically to help my amazing girlfriend manage her Custom Content with ease. Seeing her spend so much time organizing files and finding creator credits inspired me to code a solution just for her. Everything here was made to make her life a little bit easier and her game a little more fun. I love you very much! ❤️"
+                                </p>
+                            </div>
                         </div>
                     }
                 />
