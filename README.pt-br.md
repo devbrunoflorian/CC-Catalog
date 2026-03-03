@@ -34,6 +34,10 @@ Se esta ferramenta acabar ajudando mais alguém na comunidade do The Sims a orga
 - 🎨 **Interface Glass Premium**: Uma interface "glassy" deslumbrante com suporte nativo a **Acrylic/Mica** do Windows e cores de destaque personalizáveis.
 - 🧠 **Busca Difusa de Criadores**: Usa distância Levenshtein para detectar nomes de criadores similares e evitar entradas redundantes.
 - 🗃️ **Persistência Robusta**: SQLite com **Drizzle ORM**. O sistema de Exportação/Importação CSV agora suporta e preserva totalmente as hierarquias de pastas.
+- 📸 **Snapshots Organizados**: Crie uma cópia perfeitamente estruturada da sua pasta de Mods (`Criador > Set > Item.package`) usando **Hard Links**.
+    - **Espaço Zero**: Não ocupa espaço adicional no disco.
+    - **Seguro para Mod Managers**: Não move os arquivos originais, tornando-o 100% compatível com o **CurseForge** e outros gerenciadores.
+    - **Nativo do Windows**: Utiliza hard links do sistema NTFS para uma organização instantânea e eficiente.
 
 ## 💻 Stack Tecnológica
 
@@ -97,3 +101,4 @@ Estamos em constante evolução. Confira nossa página de [Implementações Futu
 - [x] **Rich Clipboard API**: Suporte para cópia em `text/html` para contornar limitações do editor do Patreon.
 - [x] **CSV com Hierarquia**: Exportação e Importação agora preservam a estrutura de pastas aninhadas.
 - [x] **Tema Glass**: Efeitos de transparência nativos do Windows e tintura customizada.
+- [x] **Snapshots Organizados**: Espelhamento de pastas com zero bytes usando Hard Links para organização compatível com CurseForge.

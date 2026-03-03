@@ -1364,9 +1364,19 @@ ipcMain.handle('generate-organized-snapshot', async () => {
         return { success: false, message: 'Source and Destination cannot be the same folder.' };
     }
 
+    const path = await import('path');
+    const sourceRoot = path.parse(sourceDir).root.toLowerCase();
+    const targetRoot = path.parse(targetDir).root.toLowerCase();
+
+    if (sourceRoot !== targetRoot) {
+        return {
+            success: false,
+            message: `Hard links only work on the same drive. Please select a destination folder in the ${sourceRoot.toUpperCase()} drive.`
+        };
+    }
+
     try {
         const fs = await import('fs/promises');
-        const path = await import('path');
         const db = getDb();
 
         let successCount = 0;
@@ -1445,8 +1455,11 @@ ipcMain.handle('generate-organized-snapshot', async () => {
                         await fs.link(originalPath, finalDestPath);
                         successCount++;
                     }
-                } catch (err) {
+                } catch (err: any) {
                     console.error(`Error linking ${item.fileName}:`, err);
+                    if (err.code === 'EXDEV') {
+                        return { success: false, message: 'Source and Destination must be on the same drive (Volume).' };
+                    }
                     errorCount++;
                 }
 

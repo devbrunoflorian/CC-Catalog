@@ -34,6 +34,10 @@ If this tool happens to help someone else in the Sims community organize their l
 - 🎨 **Premium Glass UI**: A stunning "glassy" interface with Windows native **Acrylic/Mica** support and customizable accent colors.
 - 🧠 **Fuzzy Creator Matching**: Uses Levenshtein distance to detect similar creator names to prevent redundant entries.
 - 🗃️ **Robust Persistence**: SQLite with **Drizzle ORM**. The CSV Export/Import system now fully supports and preserves set hierarchies.
+- 📸 **Organized Snapshot**: Create a perfectly structured copy of your Mods folder (`Creator > Set > Item.package`) using **Hard Links**. 
+    - **Zero Space**: Takes up no additional disk space.
+    - **Safe for Mod Managers**: Does not move original files, making it 100% compatible with **CurseForge** and other loaders.
+    - **Windows Native**: Leverages NTFS hard links for instant, space-efficient organization.
 
 ## 💻 Technology Stack
 
@@ -96,3 +100,4 @@ We are constantly evolving. Check out our [Future Implementations](FUTURE_IMPLEM
 - [x] **Rich Clipboard API**: Support for `text/html` copying to bypass Patreon editor limitations.
 - [x] **Hierarchy-Aware CSV**: Export and Import now preserve nested folder structures.
 - [x] **Glass Theme**: Native Windows transparency effects and custom tinting.
+- [x] **Organized Snapshot**: Zero-byte folder mirroring using Hard Links for CurseForge-compatible organization.

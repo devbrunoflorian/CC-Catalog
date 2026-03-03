@@ -180,6 +180,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                                     <p className="text-xs text-slate-400 mt-1 leading-relaxed">
                                         Create a perfectly organized copy of your Mods folder using <span className="text-slate-200 font-bold">Hard Links</span>.
                                         This takes <span className="text-slate-200 font-bold">0 extra space</span> and <span className="text-slate-200 font-bold">does NOT break CurseForge</span>!
+                                        <br />
+                                        <span className="text-[10px] text-slate-500 opacity-70">Note: Destination and Mods folder must be on the same drive.</span>
                                     </p>
                                 </div>
                             </div>
@@ -188,8 +190,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                                 onClick={handleGenerateSnapshot}
                                 disabled={isGeneratingSnapshot}
                                 className={`w-full py-2.5 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${isGeneratingSnapshot
-                                        ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
-                                        : 'bg-brand-primary hover:bg-brand-secondary text-white shadow-lg shadow-brand-primary/20 hover-glow'
+                                    ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
+                                    : 'bg-brand-primary hover:bg-brand-secondary text-white shadow-lg shadow-brand-primary/20 hover-glow'
                                     }`}
                             >
                                 <DownloadCloud size={16} />
