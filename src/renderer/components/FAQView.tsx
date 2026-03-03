@@ -177,7 +177,7 @@ const FAQView: React.FC = () => {
                                 </a>
 
                                 <a
-                                    href="https://x.com/violetsimmer7"
+                                    href="https://x.com/byvioletsimmer"
                                     target="_blank"
                                     rel="noreferrer"
                                     className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all group hover-glow"
@@ -186,7 +186,7 @@ const FAQView: React.FC = () => {
                                         <Twitter size={16} />
                                     </div>
                                     <div className="flex flex-col">
-                                        <span className="text-xs font-bold text-slate-100">@violetsimmer7</span>
+                                        <span className="text-xs font-bold text-slate-100">@byvioletsimmer</span>
                                         <span className="text-[10px] text-slate-500 uppercase font-black">Follow on X</span>
                                     </div>
                                 </a>
@@ -195,7 +195,7 @@ const FAQView: React.FC = () => {
                             <div className="border-t border-white/5 pt-4">
                                 <p className="text-xs font-bold text-slate-400 mb-3 uppercase tracking-widest">Support the Creator</p>
                                 <a
-                                    href="https://www.patreon.com/cw/Violetsimmer7"
+                                    href="https://www.patreon.com/cw/byvioletsimmer"
                                     target="_blank"
                                     rel="noreferrer"
                                     className="flex items-center gap-3 p-4 bg-brand-primary/10 border border-brand-primary/20 rounded-2xl hover:bg-brand-primary/20 transition-all group hover-lift"
@@ -204,7 +204,7 @@ const FAQView: React.FC = () => {
                                         <Heart size={20} fill="white" />
                                     </div>
                                     <div className="flex flex-col">
-                                        <span className="text-sm font-black text-slate-100 italic">Patreon: Violetsimmer7</span>
+                                        <span className="text-sm font-black text-slate-100 italic">Patreon: byvioletsimmer</span>
                                         <span className="text-[10px] text-brand-secondary font-bold uppercase tracking-widest">Help the project grow!</span>
                                     </div>
                                 </a>
