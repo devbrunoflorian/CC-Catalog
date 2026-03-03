@@ -13,6 +13,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     const [updateProgress, setUpdateProgress] = React.useState<number>(0);
     const [appVersion, setAppVersion] = React.useState<string>('');
 
+    // Snapshot State
+    const [isGeneratingSnapshot, setIsGeneratingSnapshot] = React.useState(false);
+    const [snapshotStatus, setSnapshotStatus] = React.useState<{ status: string, message: string } | null>(null);
+
     React.useEffect(() => {
         if (!isOpen) return;
 
@@ -29,8 +33,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
         };
         const handleProgress = (_event: any, progress: number) => setUpdateProgress(progress);
 
+        const handleAppStatus = (_event: any, data: any) => {
+            if (isGeneratingSnapshot || data.status === 'checking') {
+                setSnapshotStatus(data);
+            }
+        };
+
         (window as any).electron.on('update-status', handleStatus);
         (window as any).electron.on('update-progress', handleProgress);
+        (window as any).electron.on('update-status', handleAppStatus); // Reuse update-status event for app-wide statuses
 
         return () => {
             (window as any).electron.removeAllListeners('update-status');
@@ -40,6 +51,25 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 
     const handleInstallUpdate = () => {
         (window as any).electron.invoke('quit-and-install');
+    };
+
+    const handleGenerateSnapshot = async () => {
+        setIsGeneratingSnapshot(true);
+        setSnapshotStatus({ status: 'checking', message: 'Starting snapshot generation...' });
+
+        try {
+            const result = await (window as any).electron.invoke('generate-organized-snapshot');
+            if (result.success) {
+                alert(`Snapshot Generated Successfully!\n\nFiles Linked: ${result.metrics.successCount}\nFiles Skipped (Already Exist): ${result.metrics.skipCount}\nErrors: ${result.metrics.errorCount}`);
+            } else if (result.message !== 'Source folder selection canceled.' && result.message !== 'Destination folder selection canceled.') {
+                alert(`Error: ${result.message}`);
+            }
+        } catch (error: any) {
+            alert(`Failed: ${error.message}`);
+        } finally {
+            setIsGeneratingSnapshot(false);
+            setSnapshotStatus(null);
+        }
     };
 
     if (!isOpen) return null;
@@ -141,6 +171,37 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                             Export your library to edit organization in Excel, then import it back.
                             Format: Creator, P/W, Set, P/W, Items.
                         </p>
+
+                        {/* Snapshot Feature */}
+                        <div className="mt-4 p-4 border border-brand-primary/30 bg-brand-primary/5 rounded-xl space-y-3">
+                            <div className="flex items-start justify-between">
+                                <div>
+                                    <h4 className="text-sm font-bold text-brand-secondary">Organized Snapshot</h4>
+                                    <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                                        Create a perfectly organized copy of your Mods folder using <span className="text-slate-200 font-bold">Hard Links</span>.
+                                        This takes <span className="text-slate-200 font-bold">0 extra space</span> and <span className="text-slate-200 font-bold">does NOT break CurseForge</span>!
+                                    </p>
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={handleGenerateSnapshot}
+                                disabled={isGeneratingSnapshot}
+                                className={`w-full py-2.5 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${isGeneratingSnapshot
+                                        ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
+                                        : 'bg-brand-primary hover:bg-brand-secondary text-white shadow-lg shadow-brand-primary/20 hover-glow'
+                                    }`}
+                            >
+                                <DownloadCloud size={16} />
+                                {isGeneratingSnapshot ? 'Generating...' : 'Generate Snapshot Folder'}
+                            </button>
+
+                            {isGeneratingSnapshot && snapshotStatus?.message && (
+                                <div className="text-center text-xs text-brand-secondary animate-pulse mt-2">
+                                    {snapshotStatus.message}
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     {/* About Section */}

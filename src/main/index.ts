@@ -1338,6 +1338,136 @@ app.on('window-all-closed', () => {
     }
 });
 
+// --- NEW IPC HANDLER: Organized Snapshot ---
+ipcMain.handle('generate-organized-snapshot', async () => {
+    if (!dbInitialized) throw new Error('Database not initialized');
+
+    // 1. Select Source Folder
+    const { canceled: srcCanceled, filePaths: srcPaths } = await dialog.showOpenDialog({
+        title: 'Select Original Mods Folder',
+        properties: ['openDirectory'],
+        message: 'Select your current, original The Sims 4 Mods folder.'
+    });
+    if (srcCanceled || srcPaths.length === 0) return { success: false, message: 'Source folder selection canceled.' };
+    const sourceDir = srcPaths[0];
+
+    // 2. Select Destination Folder
+    const { canceled: destCanceled, filePaths: destPaths } = await dialog.showOpenDialog({
+        title: 'Select Destination Folder for Snapshot',
+        properties: ['openDirectory'],
+        message: 'Select an EMPTY folder where the organized hard links will be created.'
+    });
+    if (destCanceled || destPaths.length === 0) return { success: false, message: 'Destination folder selection canceled.' };
+    const targetDir = destPaths[0];
+
+    if (sourceDir === targetDir) {
+        return { success: false, message: 'Source and Destination cannot be the same folder.' };
+    }
+
+    try {
+        const fs = await import('fs/promises');
+        const path = await import('path');
+        const db = getDb();
+
+        let successCount = 0;
+        let skipCount = 0;
+        let errorCount = 0;
+
+        // Recursive function to find all .package files
+        async function getFiles(dir: string): Promise<string[]> {
+            const dirents = await fs.readdir(dir, { withFileTypes: true });
+            const files = await Promise.all(dirents.map((dirent) => {
+                const res = path.resolve(dir, dirent.name);
+                return dirent.isDirectory() ? getFiles(res) : res;
+            }));
+            return Array.prototype.concat(...files).filter(f => f.toLowerCase().endsWith('.package'));
+        }
+
+        win?.webContents.send('update-status', { status: 'checking', message: 'Scanning source folder...' });
+        const sourceFiles = await getFiles(sourceDir);
+
+        // Build a map of filename (lowercase) -> absolute path in source folder
+        const sourceFileMap = new Map<string, string>();
+        for (const file of sourceFiles) {
+            sourceFileMap.set(path.basename(file).toLowerCase(), file);
+        }
+
+        // Fetch all items from DB with Set and Creator info
+        win?.webContents.send('update-status', { status: 'checking', message: 'Reading catalog database...' });
+        const allItems = db.select().from(ccItems).all();
+
+        for (const item of allItems) {
+            const fileNameLower = item.fileName.toLowerCase();
+            const originalPath = sourceFileMap.get(fileNameLower);
+
+            if (originalPath) {
+                // Find Set Hierarchy
+                let setPath = '';
+                const set = db.select().from(ccSets).where(eq(ccSets.id, item.ccSetId)).get();
+                if (set) {
+                    let currentSet = set;
+                    const hierarchy = [currentSet.name];
+                    while (currentSet.parentId) {
+                        const parent = db.select().from(ccSets).where(eq(ccSets.id, currentSet.parentId)).get();
+                        if (parent) {
+                            hierarchy.unshift(parent.name);
+                            currentSet = parent;
+                        } else break;
+                    }
+
+                    const creator = db.select().from(creators).where(eq(creators.id, currentSet.creatorId)).get();
+                    const creatorName = creator ? creator.name : 'Unknown Creator';
+
+                    setPath = path.join(creatorName, ...hierarchy);
+                } else {
+                    setPath = 'Unsorted';
+                }
+
+                // Sanitize folder names to prevent path traversal or invalid chars on Windows
+                const sanitize = (name: string) => name.replace(/[<>:"/\\|?*]/g, '_');
+                const cleanSetParts = setPath.split(path.sep).map(sanitize);
+                const finalSetPath = path.join(...cleanSetParts);
+
+                const finalDestDir = path.join(targetDir, finalSetPath);
+                const finalDestPath = path.join(finalDestDir, item.fileName);
+
+                try {
+                    // Create folders if they don't exist
+                    await fs.mkdir(finalDestDir, { recursive: true });
+
+                    // Check if file already exists at destination (maybe a previous run)
+                    try {
+                        await fs.access(finalDestPath);
+                        // File exists, skip or delete? Let's skip to be safe.
+                        skipCount++;
+                    } catch {
+                        // Create hard link
+                        await fs.link(originalPath, finalDestPath);
+                        successCount++;
+                    }
+                } catch (err) {
+                    console.error(`Error linking ${item.fileName}:`, err);
+                    errorCount++;
+                }
+
+            } else {
+                // File exists in DB but not in the physical source folder anymore
+                skipCount++;
+            }
+        }
+
+        win?.webContents.send('update-status', { status: 'none', message: '' });
+        return {
+            success: true,
+            metrics: { successCount, skipCount, errorCount, totalSourceFiles: sourceFiles.length }
+        };
+
+    } catch (error: any) {
+        console.error('Snapshot generation failed:', error);
+        return { success: false, message: error.message };
+    }
+});
+
 app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
         createWindow();
